@@ -77,7 +77,7 @@ function PhotoGallery({ images=[], onChange, showCaption=true }) {
   return (
     <div>
       <div style={LBL}>画像</div>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(170px,1fr))", gap:12 }}>
+      <div className="photo-grid" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(170px,1fr))", gap:12 }}>
         {images.map(img => (
           <div key={img.id} style={{ borderRadius:8, overflow:"hidden", border:"1px solid #e8e0d0", background:"#fff" }}>
             <div style={{ position:"relative" }}>
@@ -112,7 +112,7 @@ function PhotoGallery({ images=[], onChange, showCaption=true }) {
 // ─── SectionHeader ────────────────────────────────────────────────────────────
 function SectionHeader({ title, subtitle }) {
   return (
-    <div style={{ marginBottom:28 }}>
+    <div className="section-hdr" style={{ marginBottom:28 }}>
       <div style={{ display:"flex", alignItems:"center", gap:12 }}>
         <div style={{ width:3, height:28, background:"#b89a5c", borderRadius:2 }} />
         <h2 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:30, fontWeight:300,
@@ -343,9 +343,9 @@ function TeaSection({ year, month, notify }) {
 
       {/* ── Modal ── */}
       {modal && form && (
-        <div onClick={closeMod} style={{position:"fixed",inset:0,background:"#1c151088",zIndex:300,
+        <div className="modal-bg" onClick={closeMod} style={{position:"fixed",inset:0,background:"#1c151088",zIndex:300,
           display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"28px 16px 60px",overflowY:"auto"}}>
-          <div onClick={e=>e.stopPropagation()} style={{background:"#faf6ee",borderRadius:16,width:"100%",
+          <div className="modal-box" onClick={e=>e.stopPropagation()} style={{background:"#faf6ee",borderRadius:16,width:"100%",
             maxWidth:640,boxShadow:"0 24px 60px #1c151044",overflow:"hidden"}}>
             <div style={{background:"#1c1510",padding:"18px 24px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <div>
@@ -357,7 +357,7 @@ function TeaSection({ year, month, notify }) {
               <button onClick={closeMod} style={{color:"#7a6a5a",fontSize:22,border:"none",background:"none",cursor:"pointer",padding:"4px 8px"}}>×</button>
             </div>
             {/* Tabs */}
-            <div style={{background:"#1c1510",padding:"0 20px 14px",display:"flex",gap:4,overflowX:"auto",borderBottom:"1px solid #c9b07022"}}>
+            <div className="modal-tabs-bar" style={{background:"#1c1510",padding:"0 20px 14px",display:"flex",gap:4,overflowX:"auto",borderBottom:"1px solid #c9b07022"}}>
               {TEA_TABS.map((t,i) => {
                 const d = form ? done(form)[i] : false;
                 return <button key={i} onClick={()=>setTab(i)} style={{padding:"7px 14px",fontSize:12,letterSpacing:1,borderRadius:20,cursor:"pointer",whiteSpace:"nowrap",border:"none",
@@ -368,7 +368,7 @@ function TeaSection({ year, month, notify }) {
             {/* Tab body */}
             <div style={{padding:"24px",display:"flex",flexDirection:"column",gap:18,maxHeight:"60vh",overflowY:"auto"}}>
               {tab===0&&<>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+                <div className="form-row-2" style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
                   <div><label style={LBL}>お茶分類</label>
                     <select style={{...FI,appearance:"none",cursor:"pointer"}} value={form.分類} onChange={e=>setF("分類",e.target.value)}>
                       {TEA_TYPES.map(t=><option key={t.label}>{t.label}</option>)}</select></div>
@@ -516,6 +516,23 @@ export default function ChayozineApp() {
         button{cursor:pointer;font-family:inherit}
         ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:#c9b07044;border-radius:3px}
         @keyframes notif{0%{opacity:0;transform:translateY(8px)}15%{opacity:1;transform:none}85%{opacity:1}100%{opacity:0}}
+        @media(max-width:768px){
+          .desk-nav{display:none!important}
+          .mob-tabs{display:flex!important}
+          .main-area{padding:16px 16px 86px!important;max-width:100%!important}
+          .modal-bg{padding:0!important;align-items:flex-end!important}
+          .modal-box{border-radius:16px 16px 0 0!important;max-width:100%!important;max-height:92vh!important;width:100%!important}
+          .modal-tabs-bar{gap:2px!important;padding:0 12px 12px!important}
+          .modal-tabs-bar button{padding:6px 10px!important;font-size:11px!important}
+          .hdr-en{display:none!important}
+          .hdr-logo{font-size:17px!important;letter-spacing:2px!important}
+          .month-jatxt{font-size:28px!important;letter-spacing:3px!important}
+          .month-nav{gap:10px!important}
+          .tea-grid{grid-template-columns:1fr!important}
+          .photo-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+          .form-row-2{grid-template-columns:1fr!important}
+          .section-hdr h2{font-size:22px!important}
+        }
         .nav-item{display:flex;align-items:center;gap:10px;padding:10px 16px;border-radius:8px;cursor:pointer;transition:all .15s;border:none;background:none;width:100%;text-align:left;font-family:inherit}
         .nav-item:hover{background:#2a2018}
         .nav-item.active{background:#c9b07022;border-left:2px solid #c9b070}
@@ -534,17 +551,17 @@ export default function ChayozineApp() {
       <header style={{background:"#1c1510",height:54,display:"flex",alignItems:"center",
         padding:"0 24px",borderBottom:"1px solid #c9b07033",flexShrink:0,
         position:"sticky",top:0,zIndex:200}}>
-        <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,letterSpacing:4,color:"#c9b070",fontWeight:300}}>
+        <span className="hdr-logo" style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,letterSpacing:4,color:"#c9b070",fontWeight:300}}>
           茶与人 CHAYOZINE
         </span>
         <span style={{fontSize:10,color:"#7a6a5a",letterSpacing:3,textTransform:"uppercase",marginLeft:12}}>CMS</span>
 
         {/* Month nav — centered */}
-        <div style={{display:"flex",alignItems:"center",gap:16,margin:"0 auto"}}>
+        <div className="month-nav" style={{display:"flex",alignItems:"center",gap:16,margin:"0 auto"}}>
           <button onClick={prevMonth} style={{background:"#2a2018",color:"#f5f0e8",width:30,height:30,
             borderRadius:"50%",fontSize:16,border:"none",display:"flex",alignItems:"center",justifyContent:"center"}}>‹</button>
           <div style={{textAlign:"center",minWidth:140}}>
-            <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:300,letterSpacing:4,color:"#f5f0e8"}}>
+            <span className="month-jatxt" style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,fontWeight:300,letterSpacing:4,color:"#f5f0e8"}}>
               {MONTH_JA[month-1]}
             </span>
             <span style={{fontSize:11,color:"#c9b070",letterSpacing:3,marginLeft:10}}>{year}</span>
@@ -553,7 +570,7 @@ export default function ChayozineApp() {
             borderRadius:"50%",fontSize:16,border:"none",display:"flex",alignItems:"center",justifyContent:"center"}}>›</button>
         </div>
 
-        <div style={{fontSize:12,color:"#7a6a5a",marginLeft:"auto"}}>
+        <div className="hdr-en" style={{fontSize:12,color:"#7a6a5a",marginLeft:"auto"}}>
           {MONTH_EN[month-1]} {year}
         </div>
       </header>
@@ -562,7 +579,7 @@ export default function ChayozineApp() {
       <div style={{display:"flex",flex:1,overflow:"hidden"}}>
 
         {/* Sidebar */}
-        <nav style={{width:210,background:"#1c1510",flexShrink:0,overflowY:"auto",
+        <nav className="desk-nav" style={{width:210,background:"#1c1510",flexShrink:0,overflowY:"auto",
           padding:"16px 12px",display:"flex",flexDirection:"column",gap:2}}>
           {NAV.map(item => (
             <button key={item.id} onClick={() => setSection(item.id)}
@@ -579,7 +596,7 @@ export default function ChayozineApp() {
         </nav>
 
         {/* Main content */}
-        <main style={{flex:1,overflowY:"auto",padding:"36px 40px 80px",maxWidth:960}}>
+        <main className="main-area" style={{flex:1,overflowY:"auto",padding:"36px 40px 80px",maxWidth:960}}>
           {renderSection()}
         </main>
       </div>
