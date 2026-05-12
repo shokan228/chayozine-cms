@@ -571,7 +571,7 @@ export default function ChayozineApp() {
       </header>
 
       {/* ── Body: Sidebar + Main ── */}
-      <div style={{display:"flex",flex:1,overflow:"hidden"}}>
+      <div style={{display:"flex",flex:1,minHeight:0}}>
 
         {/* Sidebar */}
         {!isMobile && (
@@ -597,6 +597,30 @@ export default function ChayozineApp() {
           {renderSection()}
         </main>
       </div>
+
+      {/* Mobile bottom tab bar */}
+      {isMobile && (
+        <div style={{position:"fixed",bottom:0,left:0,right:0,
+          background:"#1c1510",borderTop:"1px solid #c9b07033",
+          display:"flex",overflowX:"auto",zIndex:9999,
+          WebkitOverflowScrolling:"touch",
+          paddingBottom:"env(safe-area-inset-bottom)"}}>
+          {NAV.map(item=>(
+            <button key={item.id} onClick={()=>setSection(item.id)} style={{
+              flexShrink:0,display:"flex",flexDirection:"column",alignItems:"center",
+              gap:2,padding:"10px 14px",background:"none",border:"none",cursor:"pointer",
+              borderTop:section===item.id?"2px solid #c9b070":"2px solid transparent",
+            }}>
+              <span style={{fontSize:22}}>{item.icon}</span>
+              <span style={{fontSize:9,letterSpacing:0.5,
+                color:section===item.id?"#c9b070":"#7a6a5a",whiteSpace:"nowrap"}}>
+                {item.label}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
     </div>
   );
 }
