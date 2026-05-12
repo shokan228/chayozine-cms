@@ -260,11 +260,11 @@ function TeaSection({ year, month, notify }) {
   const persist = async (u) => { await saveS("teas",year,month,u); setTeas(u); };
 
   const openAdd  = () => { setForm(mkTea()); setTab(0); setModal("add"); };
-  const openEdit = t  => { setForm(structuredClone(t)); setTab(0); setModal("edit"); };
+  const openEdit = t  => { setForm(JSON.parse(JSON.stringify(t))); setTab(0); setModal("edit"); };
   const closeMod = () => { setModal(null); setForm(null); };
 
   const setF = (path, val) => setForm(prev => {
-    const next = structuredClone(prev);
+    const next = JSON.parse(JSON.stringify(prev));
     const keys = path.split(".");
     let obj = next;
     for (let i = 0; i < keys.length-1; i++) obj = obj[keys[i]];
@@ -276,7 +276,7 @@ function TeaSection({ year, month, notify }) {
     const ts = new Date().toLocaleString("ja-JP",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"});
     setForm(p => ({...p, 試飲記録:[...(p.試飲記録||[]),{id:Date.now().toString(),時間:ts,感想:""}]}));
   };
-  const setRec = (i,k,v) => setForm(p => { const a=structuredClone(p.試飲記録); a[i][k]=v; return {...p,試飲記録:a}; });
+  const setRec = (i,k,v) => setForm(p => { const a=JSON.parse(JSON.stringify(p.試飲記録)); a[i][k]=v; return {...p,試飲記録:a}; });
   const delRec = i => setForm(p => ({...p, 試飲記録:p.試飲記録.filter((_,j)=>j!==i)}));
 
   const handleSave = async () => {
