@@ -46,10 +46,34 @@ const NAV = [
   { id:"gift",       label:"ギフト",      en:"Monthly Gift",    icon:"🎁" },
 ];
 
-// ─── Storage (localStorage) ──────────────────────────────────────────────────
+// ─── Storage (Supabase) ──────────────────────────────────────────────────────
+const SUPA_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPA_KEY = import.meta.env.VITE_SUPABASE_KEY;
+const SUPA_H = {
+  "apikey": SUPA_KEY,
+  "Authorization": `Bearer ${SUPA_KEY}`,
+  "Content-Type": "application/json",
+};
 const sk = (id, y, m) => `chayozine-${id}:${y}-${String(m).padStart(2,"0")}`;
-const loadS = async (id, y, m) => { try { const v = localStorage.getItem(sk(id,y,m)); return v ? JSON.parse(v) : null; } catch { return null; } };
-const saveS = async (id, y, m, d) => { try { localStorage.setItem(sk(id,y,m), JSON.stringify(d)); } catch { alert("保存容量が超えました。画像を減らしてください。"); } };
+const loadS = async (id, y, m) => {
+  try {
+    const key = sk(id, y, m);
+    const res = await fetch(
+      `${SUPA_URL}/rest/v1/magazine_data?id=eq.${encodeURIComponent(key)}&select=value`,
+      { headers: SUPA_H }
+    );
+    const rows = await res.json();
+    return rows[0] ? JSON.parse(rows[0].value) : null;
+  } catch { return null; }
+};
+const saveS = async (id, y, m, d) => {
+  const key = sk(id, y, m);
+  await fetch(`${SUPA_URL}/rest/v1/magazine_data`, {
+    method: "POST",
+    headers: { ...SUPA_H, "Prefer": "resolution=merge-duplicates" },
+    body: JSON.stringify({ id: key, value: JSON.stringify(d), updated_at: new Date().toISOString() }),
+  });
+};
 
 // ─── Image compress ───────────────────────────────────────────────────────────
 const compressImg = (file, maxW=1400) => new Promise(res => {
