@@ -35,7 +35,7 @@ const MONTH_JA = ["一月","二月","三月","四月","五月","六月","七月"
 const MONTH_EN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const TEA_TABS = ["基本情報","淹れ方①","淹れ方②","試飲記録","ストーリー"];
 const NAV = [
-  { id:"cover",      label:"封面",        en:"Cover Images",    icon:"🎨" },
+  { id:"cover",      label:"表紙",        en:"Cover Images",    icon:"🎨" },
   { id:"preface",    label:"ごあいさつ",   en:"Preface",         icon:"✍️" },
   { id:"teas",       label:"月間茶帳",    en:"Tea Catalog",     icon:"🫖" },
   { id:"hiroko",     label:"茶左右記",    en:"荒田博子コラム",   icon:"🍃" },
@@ -205,11 +205,11 @@ function CoverSection({ year, month, notify }) {
   const save = async () => { setSaving(true); await saveS("cover",year,month,{images}); setSaving(false); notify("保存しました ✓"); };
   return (
     <div>
-      <SectionHeader title="封面" subtitle="Cover Images — 複数枚アップロード可、設計師参考用" />
+      <SectionHeader title="表紙" subtitle="Cover Images — 複数枚アップロード可、設計師参考用" />
       <div style={{ background:"#fff8f2", border:"1px solid #f0e8d0", borderRadius:8, padding:"12px 16px", marginBottom:20, fontSize:13, color:"#7a6a5a" }}>
         💡 複数の候補画像をアップロードして、デザイナーに共有できます。
       </div>
-      <PhotoGallery images={images} onChange={setImages} showCaption={false} />
+      <PhotoGallery images={images} onChange={setImages} showCaption={true} />
       <SaveBar onSave={save} saving={saving} />
     </div>
   );
@@ -262,6 +262,83 @@ function GiftSection({ year, month, notify }) {
             placeholder="このギフトの紹介、選んだ理由、楽しみ方…" />
         </div>
         <PhotoGallery images={data.images} onChange={imgs => setData(p=>({...p, images:imgs}))} showCaption={false} />
+      </div>
+      <SaveBar onSave={save} saving={saving} />
+    </div>
+  );
+}
+
+
+// ─── MultiEntrySection (複数追加可能) ────────────────────────────────────────
+function MultiEntrySection({ sectionId, year, month, notify, title, subtitle }) {
+  const mkEntry = () => ({ id: Date.now().toString(), entryTitle: "", body: "", images: [] });
+  const [entries, setEntries] = useState([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    loadS(sectionId, year, month).then(d => setEntries(d || []));
+  }, [sectionId, year, month]);
+
+  const save = async () => {
+    setSaving(true);
+    await saveS(sectionId, year, month, entries);
+    setSaving(false);
+    notify("保存しました ✓");
+  };
+
+  const addEntry = () => setEntries(p => [...p, mkEntry()]);
+  const delEntry = id => setEntries(p => p.filter(e => e.id !== id));
+  const setEK = (id, key, val) => setEntries(p => p.map(e => e.id === id ? {...e, [key]: val} : e));
+  const setImgs = (id, imgs) => setEntries(p => p.map(e => e.id === id ? {...e, images: imgs} : e));
+
+  return (
+    <div>
+      <SectionHeader title={title} subtitle={subtitle} />
+      <div style={{display:"flex",flexDirection:"column",gap:24}}>
+        {entries.map((entry, i) => (
+          <div key={entry.id} style={{...SBOX, position:"relative"}}>
+            {/* Entry number + delete */}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+              <span style={{fontSize:11,letterSpacing:2,color:"#8a7060",textTransform:"uppercase"}}>
+                #{i+1}
+              </span>
+              <button onClick={() => delEntry(entry.id)}
+                style={{fontSize:12,color:"#a05040",textDecoration:"underline",background:"none",border:"none",cursor:"pointer"}}>
+                削除
+              </button>
+            </div>
+            <div>
+              <label style={LBL}>タイトル</label>
+              <input style={FI} value={entry.entryTitle}
+                onChange={e => setEK(entry.id, "entryTitle", e.target.value)}
+                placeholder="このイベント・活動のタイトル…" />
+            </div>
+            <div>
+              <label style={LBL}>本文</label>
+              <textarea style={{...FI, resize:"vertical", lineHeight:1.9}} rows={6}
+                value={entry.body}
+                onChange={e => setEK(entry.id, "body", e.target.value)}
+                placeholder="内容をこちらに…" />
+            </div>
+            <PhotoGallery
+              images={entry.images || []}
+              onChange={imgs => setImgs(entry.id, imgs)}
+              showCaption={true} />
+          </div>
+        ))}
+
+        {/* Add button */}
+        <button onClick={addEntry} style={{
+          border:"1.5px dashed #c9b070",borderRadius:10,padding:"20px",
+          background:"none",cursor:"pointer",color:"#8a7060",fontSize:13,
+          letterSpacing:2,textTransform:"uppercase",transition:"background .2s",
+          display:"flex",alignItems:"center",justifyContent:"center",gap:10,
+        }}
+          onMouseOver={e=>e.currentTarget.style.background="#f5eedc"}
+          onMouseOut={e=>e.currentTarget.style.background="none"}>
+          <span style={{fontSize:20,color:"#c9b070"}}>＋</span>
+          新しいエントリーを追加
+        </button>
       </div>
       <SaveBar onSave={save} saving={saving} />
     </div>
@@ -574,10 +651,10 @@ export default function ChayozineApp() {
                            title="茶左右記" subtitle="荒田博子コラム" showCaption={true}/>;
       case "pilgrimage": return <GenericColumn sectionId="pilgrimage" year={year} month={month} notify={notify}
                            title="茶景巡礼" subtitle="カンちゃんコラム" showCaption={true}/>;
-      case "report":     return <GenericColumn sectionId="report" year={year} month={month} notify={notify}
-                           title="活動レポート" subtitle="先月の活動報告" showCaption={true}/>;
-      case "events":     return <GenericColumn sectionId="events" year={year} month={month} notify={notify}
-                           title="活動予告" subtitle="今月のイベント情報" showCaption={true}/>;
+      case "report":     return <MultiEntrySection sectionId="report" year={year} month={month} notify={notify}
+                           title="活動レポート" subtitle="先月の活動報告 — 複数追加可" />;
+      case "events":     return <MultiEntrySection sectionId="events" year={year} month={month} notify={notify}
+                           title="活動予告" subtitle="今月のイベント情報 — 複数追加可" />;
       case "guest":      return <GenericColumn sectionId="guest" year={year} month={month} notify={notify}
                            title="ゲスト専攻" subtitle="客座老師コラム" showCaption={true}
                            extraFields={[{key:"author", label:"著者名", ph:"例：山田花子"}]}/>;
