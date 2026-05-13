@@ -30,6 +30,7 @@ const TEA_TYPES = [
   { label:"黒茶（普洱）", color:"#3a2820", bg:"#ede8e2", border:"#b4a090" },
   { label:"黄茶",        color:"#7a6010", bg:"#f5f0d8", border:"#d4c070" },
   { label:"花茶",        color:"#7a3a60", bg:"#f5e4f0", border:"#d4a0c0" },
+  { label:"茶外茶",      color:"#4a5a6a", bg:"#e8eef2", border:"#a0b4c4" },
 ];
 const MONTH_JA = ["一月","二月","三月","四月","五月","六月","七月","八月","九月","十月","十一月","十二月"];
 const MONTH_EN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
