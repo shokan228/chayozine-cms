@@ -489,11 +489,10 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
             borderRadius:isMobile?"16px 16px 0 0":16,width:"100%",
             maxWidth:isMobile?"100%":640,
             height:isMobile?"88vh":"auto",
-            maxHeight:isMobile?"88vh":"85vh",
+            maxHeight:"88vh",
             display:"flex",flexDirection:"column",
             boxShadow:"0 24px 60px #1c151044",
-            overflow:"hidden",
-            position:"relative"}}>
+            overflow:"hidden"}}>
             <div style={{background:"#1c1510",padding:"18px 24px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <div>
                 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:"#f5f0e8",fontStyle:"italic",fontWeight:300}}>
@@ -513,7 +512,7 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
               })}
             </div>
             {/* Tab body */}
-            <div style={{padding:isMobile?"14px":"24px",paddingBottom:isMobile?"80px":"24px",display:"flex",flexDirection:"column",gap:16,flex:"1 1 0",minHeight:0,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
+            <div style={{padding:isMobile?"14px 14px 80px 14px":"24px",display:"flex",flexDirection:"column",gap:16,flex:"1 1 0",minHeight:0,overflowY:"scroll",WebkitOverflowScrolling:"touch"}}>
               {tab===0&&<>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
                   <div><label style={LBL}>お茶分類</label>
@@ -602,7 +601,7 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
               </>}
             </div>
             {/* Footer */}
-            <div style={{padding:"14px 24px",borderTop:"1px solid #ede8de",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fff8f2",flexShrink:0,position:isMobile?"absolute":"relative",bottom:isMobile?0:"auto",left:0,right:0,zIndex:20}}>
+            <div style={{padding:"14px 24px",borderTop:"1px solid #ede8de",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fff8f2",flexShrink:0,zIndex:2}}>
               {modal==="edit"
                 ? <button onClick={handleDel} style={{color:"#a05040",fontSize:12,letterSpacing:1,textDecoration:"underline",border:"none",background:"none",cursor:"pointer"}}>このお茶を削除</button>
                 : <span/>}
