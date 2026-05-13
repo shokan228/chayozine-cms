@@ -303,7 +303,7 @@ function GenericColumn({ sectionId, year, month, notify, title, subtitle, extraF
 }
 
 // ─── TeaSection (full tea catalog with modal) ─────────────────────────────────
-function TeaSection({ year, month, notify, isMobile }) {
+function TeaSection({ year, month, notify, isMobile, onModalChange }) {
   const [teas,  setTeas]   = useState([]);
   const [loading, setLoad] = useState(true);
   const [modal, setModal]  = useState(null);
@@ -320,9 +320,9 @@ function TeaSection({ year, month, notify, isMobile }) {
   useEffect(() => { loadTeas(); }, [loadTeas]);
   const persist = async (u) => { await saveS("teas",year,month,u); setTeas(u); };
 
-  const openAdd  = () => { setForm(mkTea()); setTab(0); setModal("add"); };
-  const openEdit = t  => { setForm(normalizeTea(JSON.parse(JSON.stringify(t)))); setTab(0); setModal("edit"); };
-  const closeMod = () => { setModal(null); setForm(null); };
+  const openAdd  = () => { setForm(mkTea()); setTab(0); setModal("add"); onModalChange?.(true); };
+  const openEdit = t  => { setForm(normalizeTea(JSON.parse(JSON.stringify(t)))); setTab(0); setModal("edit"); onModalChange?.(true); };
+  const closeMod = () => { setModal(null); setForm(null); onModalChange?.(false); };
 
   const setF = (path, val) => setForm(prev => {
     const next = JSON.parse(JSON.stringify(prev));
@@ -404,15 +404,19 @@ function TeaSection({ year, month, notify, isMobile }) {
 
       {/* ── Modal ── */}
       {modal && form && (
-        <div onClick={closeMod} style={{position:"fixed",inset:0,background:"#1c151088",zIndex:300,
+        <div onClick={closeMod} style={{position:"fixed",inset:0,background:"#1c151088",zIndex:10000,
           display:"flex",alignItems:isMobile?"flex-end":"flex-start",justifyContent:"center",
-          padding:isMobile?"0":"28px 16px 60px",overflowY:isMobile?"hidden":"auto"}}>
+          padding:isMobile?"0":"28px 16px 60px",overflowY:isMobile?"hidden":"auto",
+          WebkitOverflowScrolling:"touch"}}>
           <div onClick={e=>e.stopPropagation()} style={{background:"#faf6ee",
             borderRadius:isMobile?"16px 16px 0 0":16,width:"100%",
             maxWidth:isMobile?"100%":640,
-            maxHeight:isMobile?"92vh":"none",
+            height:isMobile?"88vh":"auto",
+            maxHeight:isMobile?"88vh":"85vh",
             display:"flex",flexDirection:"column",
-            boxShadow:"0 24px 60px #1c151044",overflow:"hidden"}}>
+            boxShadow:"0 24px 60px #1c151044",
+            overflow:"hidden",
+            position:"relative"}}>
             <div style={{background:"#1c1510",padding:"18px 24px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <div>
                 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:"#f5f0e8",fontStyle:"italic",fontWeight:300}}>
@@ -432,7 +436,7 @@ function TeaSection({ year, month, notify, isMobile }) {
               })}
             </div>
             {/* Tab body */}
-            <div style={{padding:"24px",display:"flex",flexDirection:"column",gap:18,maxHeight:"60vh",overflowY:"auto"}}>
+            <div style={{padding:isMobile?"14px":"24px",paddingBottom:isMobile?"80px":"24px",display:"flex",flexDirection:"column",gap:16,flex:"1 1 0",minHeight:0,overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
               {tab===0&&<>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
                   <div><label style={LBL}>お茶分類</label>
@@ -521,7 +525,7 @@ function TeaSection({ year, month, notify, isMobile }) {
               </>}
             </div>
             {/* Footer */}
-            <div style={{padding:"14px 24px",borderTop:"1px solid #ede8de",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fff8f2"}}>
+            <div style={{padding:"14px 24px",borderTop:"1px solid #ede8de",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fff8f2",flexShrink:0,position:isMobile?"absolute":"relative",bottom:isMobile?0:"auto",left:0,right:0,zIndex:20}}>
               {modal==="edit"
                 ? <button onClick={handleDel} style={{color:"#a05040",fontSize:12,letterSpacing:1,textDecoration:"underline",border:"none",background:"none",cursor:"pointer"}}>このお茶を削除</button>
                 : <span/>}
@@ -549,6 +553,7 @@ export default function ChayozineApp() {
   const [section, setSection]= useState("cover");
   const [notice,  setNotice] = useState("");
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  const [teaModalOpen, setTeaModalOpen] = useState(false);
   useEffect(() => {
     const fn = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener("resize", fn);
@@ -561,7 +566,7 @@ export default function ChayozineApp() {
 
   const renderSection = () => {
     switch(section) {
-      case "teas":       return <TeaSection year={year} month={month} notify={notify} isMobile={isMobile}/>;
+      case "teas":       return <TeaSection year={year} month={month} notify={notify} isMobile={isMobile} onModalChange={setTeaModalOpen}/>;
       case "cover":      return <CoverSection year={year} month={month} notify={notify}/>;
       case "preface":    return <PrefaceSection year={year} month={month} notify={notify}/>;
       case "gift":       return <GiftSection year={year} month={month} notify={notify}/>;
@@ -661,7 +666,7 @@ export default function ChayozineApp() {
       </div>
 
       {/* Mobile bottom tab bar */}
-      {isMobile && (
+      {isMobile && !teaModalOpen && (
         <div style={{position:"fixed",bottom:0,left:0,right:0,
           background:"#1c1510",borderTop:"1px solid #c9b07033",
           display:"flex",overflowX:"auto",zIndex:9999,
