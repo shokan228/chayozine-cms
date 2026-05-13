@@ -1,4 +1,25 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
+
+// ─── ErrorBoundary ───────────────────────────────────────────────────────────
+class ModalErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(e) { return { error: e }; }
+  componentDidCatch(e) { console.error("Modal error:", e); }
+  render() {
+    if (this.state.error) return (
+      <div style={{padding:"24px",color:"#a05040",fontSize:13,lineHeight:1.8}}>
+        <div style={{fontWeight:600,marginBottom:8}}>エラーが発生しました</div>
+        <div style={{opacity:.7}}>{this.state.error.message}</div>
+        <button onClick={()=>this.setState({error:null})}
+          style={{marginTop:12,padding:"6px 16px",background:"#1c1510",color:"#f5f0e8",
+            border:"none",borderRadius:6,cursor:"pointer",fontSize:12}}>
+          閉じる
+        </button>
+      </div>
+    );
+    return this.props.children;
+  }
+}
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 const TEA_TYPES = [
@@ -258,7 +279,7 @@ function GenericColumn({ sectionId, year, month, notify, title, subtitle, extraF
 }
 
 // ─── TeaSection (full tea catalog with modal) ─────────────────────────────────
-function TeaSection({ year, month, notify }) {
+function TeaSection({ year, month, notify, isMobile }) {
   const [teas,  setTeas]   = useState([]);
   const [loading, setLoad] = useState(true);
   const [modal, setModal]  = useState(null);
@@ -391,23 +412,23 @@ function TeaSection({ year, month, notify }) {
               {tab===0&&<>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
                   <div><label style={LBL}>お茶分類</label>
-                    <select style={{...FI,appearance:"none",cursor:"pointer"}} value={form.分類} onChange={e=>setF("分類",e.target.value)}>
+                    <select style={{...FI,appearance:"none",cursor:"pointer"}} value={form?.分類||"緑茶"} onChange={e=>setF("分類",e.target.value)}>
                       {TEA_TYPES.map(t=><option key={t.label}>{t.label}</option>)}</select></div>
                   <div><label style={LBL}>場所 · 産地</label>
-                    <input style={FI} placeholder="例：福建省武夷山" value={form.場所} onChange={e=>setF("場所",e.target.value)}/></div>
+                    <input style={FI} placeholder="例：福建省武夷山" value={form?.場所||""} onChange={e=>setF("場所",e.target.value)}/></div>
                 </div>
                 <div><label style={LBL}>お茶名 <span style={{color:"#c05040"}}>*</span></label>
-                  <input style={{...FI,fontSize:16}} placeholder="例：大紅袍…" value={form.名前} onChange={e=>setF("名前",e.target.value)}/></div>
+                  <input style={{...FI,fontSize:16}} placeholder="例：大紅袍…" value={form?.名前||""} onChange={e=>setF("名前",e.target.value)}/></div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
                   <div><label style={LBL}>ひながら</label>
-                    <input style={FI} placeholder="例：一芽二葉、春摘み" value={form.ひながら} onChange={e=>setF("ひながら",e.target.value)}/></div>
+                    <input style={FI} placeholder="例：一芽二葉、春摘み" value={form?.ひながら||""} onChange={e=>setF("ひながら",e.target.value)}/></div>
                   <div><label style={LBL}>収穫日</label>
-                    <input style={FI} placeholder="例：2025年4月清明前" value={form.収穫日} onChange={e=>setF("収穫日",e.target.value)}/></div>
+                    <input style={FI} placeholder="例：2025年4月清明前" value={form?.収穫日||""} onChange={e=>setF("収穫日",e.target.value)}/></div>
                 </div>
                 <div><label style={LBL}>説明</label>
-                  <textarea style={{...FI,resize:"vertical",lineHeight:1.8}} rows={4} value={form.説明} onChange={e=>setF("説明",e.target.value)} placeholder="風味・香り…"/></div>
+                  <textarea style={{...FI,resize:"vertical",lineHeight:1.8}} rows={4} value={form?.説明||""} onChange={e=>setF("説明",e.target.value)} placeholder="風味・香り…"/></div>
                 <div><label style={LBL}>おやつのおすすめ</label>
-                  <input style={FI} placeholder="例：和三盆、くるみ餅…" value={form.おやつ} onChange={e=>setF("おやつ",e.target.value)}/></div>
+                  <input style={FI} placeholder="例：和三盆、くるみ餅…" value={form?.おやつ||""} onChange={e=>setF("おやつ",e.target.value)}/></div>
               </>}
               {tab===1&&<>
                 <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -416,12 +437,12 @@ function TeaSection({ year, month, notify }) {
                 </div>
                 <div style={SBOX}>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-                    <div><label style={LBL}>茶器</label><input style={FI} placeholder="例：蓋碗、急須" value={form.丁寧編.茶器} onChange={e=>setF("丁寧編.茶器",e.target.value)}/></div>
-                    <div><label style={LBL}>投茶量</label><input style={FI} placeholder="例：5g（150mlに対して）" value={form.丁寧編.投茶量} onChange={e=>setF("丁寧編.投茶量",e.target.value)}/></div>
+                    <div><label style={LBL}>茶器</label><input style={FI} placeholder="例：蓋碗、急須" value={form?.丁寧編?.茶器||""} onChange={e=>setF("丁寧編.茶器",e.target.value)}/></div>
+                    <div><label style={LBL}>投茶量</label><input style={FI} placeholder="例：5g（150mlに対して）" value={form?.丁寧編?.投茶量||""} onChange={e=>setF("丁寧編.投茶量",e.target.value)}/></div>
                   </div>
-                  <div><label style={LBL}>水温</label><input style={FI} placeholder="例：95℃" value={form.丁寧編.水温} onChange={e=>setF("丁寧編.水温",e.target.value)}/></div>
+                  <div><label style={LBL}>水温</label><input style={FI} placeholder="例：95℃" value={form?.丁寧編?.水温||""} onChange={e=>setF("丁寧編.水温",e.target.value)}/></div>
                   <div><label style={LBL}>手順</label>
-                    <textarea style={{...FI,resize:"vertical",lineHeight:1.8}} rows={7} value={form.丁寧編.手順}
+                    <textarea style={{...FI,resize:"vertical",lineHeight:1.8}} rows={7} value={form?.丁寧編?.手順||""}
                       placeholder={"1. 茶器を温湯で温める\n2. 茶葉を投入\n3. 1煎目：10秒で注ぐ…"}
                       onChange={e=>setF("丁寧編.手順",e.target.value)}/></div>
                 </div>
@@ -435,13 +456,13 @@ function TeaSection({ year, month, notify }) {
                   <div>
                     <span style={{background:"#f5e8e4",border:"1px solid #d4a89a",borderRadius:4,padding:"3px 14px",fontSize:12,color:"#8a3a2e",letterSpacing:2,fontWeight:600}}>HOT 🍵</span>
                     <textarea style={{...FI,resize:"vertical",lineHeight:1.8,marginTop:10}} rows={5}
-                      value={form.クイック編.HOT} onChange={e=>setF("クイック編.HOT",e.target.value)}
+                      value={form?.クイック編?.HOT||""} onChange={e=>setF("クイック編.HOT",e.target.value)}
                       placeholder="例：マグカップに茶葉3g、95℃のお湯200ml、3分…"/></div>
                   <div style={{height:1,background:"#ede8de"}}/>
                   <div>
                     <span style={{background:"#e4f0f2",border:"1px solid #a0ccd4",borderRadius:4,padding:"3px 14px",fontSize:12,color:"#3a6e7a",letterSpacing:2,fontWeight:600}}>COLD 🧊</span>
                     <textarea style={{...FI,resize:"vertical",lineHeight:1.8,marginTop:10}} rows={5}
-                      value={form.クイック編.COLD} onChange={e=>setF("クイック編.COLD",e.target.value)}
+                      value={form?.クイック編?.COLD||""} onChange={e=>setF("クイック編.COLD",e.target.value)}
                       placeholder="例：水出し：茶葉5g、水500ml、冷蔵庫8時間…"/></div>
                 </div>
               </>}
@@ -453,7 +474,7 @@ function TeaSection({ year, month, notify }) {
                 </div>
                 {(!form.試飲記録||form.試飲記録.length===0) ? (
                   <div style={{textAlign:"center",padding:"24px 0",color:"#8a7060",fontSize:13}}>まだ試飲記録がありません</div>
-                ) : (form.試飲記録||[]).map((rec,i) => (
+                ) : (Array.isArray(form?.試飲記録)?form.試飲記録:[]).map((rec,i) => (
                   <div key={rec.id} style={{background:"#faf6ee",border:"1px solid #e8e0d0",borderRadius:8,padding:"14px 16px",position:"relative"}}>
                     <button onClick={()=>delRec(i)} style={{position:"absolute",top:10,right:12,color:"#c0a090",fontSize:16,border:"none",background:"none",cursor:"pointer"}}>×</button>
                     <div style={{marginBottom:10}}><label style={LBL}>時間</label>
@@ -467,10 +488,10 @@ function TeaSection({ year, month, notify }) {
               {tab===4&&<>
                 <div style={{fontSize:15,letterSpacing:2,color:"#5a4a3a",fontWeight:600}}>バックグラウンドストーリー</div>
                 <div style={SBOX}>
-                  <PhotoGallery images={form.ストーリー.画像||[]} onChange={imgs=>setF("ストーリー.画像",imgs)} showCaption={true} />
+                  <PhotoGallery images={Array.isArray(form?.ストーリー?.画像)?form.ストーリー.画像:[]} onChange={imgs=>setF("ストーリー.画像",imgs)} showCaption={true} />
                   <div><label style={LBL}>ストーリー・背景</label>
                     <textarea style={{...FI,resize:"vertical",lineHeight:1.9}} rows={8}
-                      value={form.ストーリー.内容} onChange={e=>setF("ストーリー.内容",e.target.value)}
+                      value={form?.ストーリー?.内容||""} onChange={e=>setF("ストーリー.内容",e.target.value)}
                       placeholder="産地、生産者、歴史、出会いの物語…"/></div>
                 </div>
               </>}
@@ -498,8 +519,9 @@ function TeaSection({ year, month, notify }) {
 // ─── Main App ─────────────────────────────────────────────────────────────────
 export default function ChayozineApp() {
   const now = new Date();
-  const [year,    setYear]   = useState(now.getFullYear());
-  const [month,   setMonth]  = useState(now.getMonth() + 1);
+  const _next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+  const [year,    setYear]   = useState(_next.getFullYear());
+  const [month,   setMonth]  = useState(_next.getMonth() + 1);
   const [section, setSection]= useState("cover");
   const [notice,  setNotice] = useState("");
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
@@ -515,7 +537,7 @@ export default function ChayozineApp() {
 
   const renderSection = () => {
     switch(section) {
-      case "teas":       return <TeaSection year={year} month={month} notify={notify}/>;
+      case "teas":       return <TeaSection year={year} month={month} notify={notify} isMobile={isMobile}/>;
       case "cover":      return <CoverSection year={year} month={month} notify={notify}/>;
       case "preface":    return <PrefaceSection year={year} month={month} notify={notify}/>;
       case "gift":       return <GiftSection year={year} month={month} notify={notify}/>;
