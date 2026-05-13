@@ -201,15 +201,23 @@ function SaveBar({ onSave, saving }) {
 function CoverSection({ year, month, notify }) {
   const [images, setImages] = useState([]);
   const [saving, setSaving] = useState(false);
-  useEffect(() => { loadS("cover",year,month).then(d => setImages(d?.images||[])); }, [year,month]);
-  const save = async () => { setSaving(true); await saveS("cover",year,month,{images}); setSaving(false); notify("保存しました ✓"); };
+  const [coverTitle, setCoverTitle] = useState("");
+  useEffect(() => { loadS("cover",year,month).then(d => { setImages(d?.images||[]); setCoverTitle(d?.title||""); }); }, [year,month]);
+  const save = async () => { setSaving(true); await saveS("cover",year,month,{images, title:coverTitle}); setSaving(false); notify("保存しました ✓"); };
   return (
     <div>
       <SectionHeader title="表紙" subtitle="Cover Images — 複数枚アップロード可、設計師参考用" />
-      <div style={{ background:"#fff8f2", border:"1px solid #f0e8d0", borderRadius:8, padding:"12px 16px", marginBottom:20, fontSize:13, color:"#7a6a5a" }}>
-        💡 複数の候補画像をアップロードして、デザイナーに共有できます。
+      <div style={SBOX}>
+        <div>
+          <label style={LBL}>今月のタイトル</label>
+          <input style={{...FI, fontSize:18}} value={coverTitle} onChange={e=>setCoverTitle(e.target.value)}
+            placeholder="例：五月 一葉知秋" />
+        </div>
+        <div style={{ background:"#fff8f2", border:"1px solid #f0e8d0", borderRadius:8, padding:"12px 16px", fontSize:13, color:"#7a6a5a" }}>
+          💡 複数の候補画像をアップロードして、デザイナーに共有できます。
+        </div>
+        <PhotoGallery images={images} onChange={setImages} showCaption={true} />
       </div>
-      <PhotoGallery images={images} onChange={setImages} showCaption={true} />
       <SaveBar onSave={save} saving={saving} />
     </div>
   );
@@ -605,11 +613,20 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
                 ? <button onClick={handleDel} style={{color:"#a05040",fontSize:12,letterSpacing:1,textDecoration:"underline",border:"none",background:"none",cursor:"pointer"}}>このお茶を削除</button>
                 : <span/>}
               <div style={{display:"flex",gap:10,alignItems:"center"}}>
-                {tab>0&&<button onClick={()=>setTab(t=>t-1)} style={{fontSize:13,color:"#8a7060",padding:"10px 16px",border:"none",background:"none",cursor:"pointer"}}>← 前へ</button>}
-                {tab<TEA_TABS.length-1
-                  ? <button onClick={()=>setTab(t=>t+1)} style={{background:"#ede8de",color:"#1c1510",borderRadius:7,padding:"11px 22px",fontSize:12,letterSpacing:2,border:"none",cursor:"pointer"}}>次へ →</button>
-                  : <button disabled={!form.名前?.trim()||saving} onClick={handleSave} style={{background:"#1c1510",color:"#f5f0e8",borderRadius:7,padding:"11px 28px",fontSize:13,letterSpacing:2,fontWeight:600,border:"none",cursor:"pointer",opacity:!form.名前?.trim()||saving?.4:1}}>
-                      {saving?"保存中…":modal==="add"?"追加する":"保存する"}</button>}
+                <div style={{display:"flex",gap:6}}>
+                  {TEA_TABS.map((_,i)=>(
+                    <button key={i} onClick={()=>setTab(i)} style={{
+                      width:8,height:8,borderRadius:"50%",border:"none",cursor:"pointer",padding:0,
+                      background:tab===i?"#1c1510":"#d0c8bc",
+                    }}/>
+                  ))}
+                </div>
+                <button disabled={!form?.名前?.trim()||saving} onClick={handleSave}
+                  style={{background:"#1c1510",color:"#f5f0e8",borderRadius:7,padding:"11px 28px",
+                    fontSize:13,letterSpacing:2,fontWeight:600,border:"none",cursor:"pointer",
+                    opacity:!form?.名前?.trim()||saving?0.4:1}}>
+                  {saving?"保存中…":modal==="add"?"全部保存する":"全部保存する"}
+                </button>
               </div>
             </div>
           </div>
