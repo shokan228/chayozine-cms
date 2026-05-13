@@ -93,7 +93,7 @@ const compressImg = (file, maxW=1400) => new Promise(res => {
 });
 
 // ─── Tea helpers ──────────────────────────────────────────────────────────────
-const mkTea = () => ({ id: Date.now().toString(), 分類:"緑茶", 場所:"", 名前:"", ひながら:"", 収穫日:"", 説明:"", おやつ:"",
+const mkTea = () => ({ id: Date.now().toString(), No:"", 分類:"緑茶", 場所:"", 名前:"", ひながら:"", 収穫日:"", 説明:"", おやつ:"",
   基本画像:[], 丁寧編:{茶器:"",投茶量:"",水温:"",手順:""}, クイック編:{HOT:"",COLD:""}, 試飲記録:[], ストーリー:{内容:"",画像:[]} });
 const tInfo = label => TEA_TYPES.find(t => t.label === label) || TEA_TYPES[0];
 
@@ -101,6 +101,7 @@ const tInfo = label => TEA_TYPES.find(t => t.label === label) || TEA_TYPES[0];
 const normalizeTea = (t) => ({
   ...mkTea(),
   ...t,
+  No: t.No || "",
   基本画像: Array.isArray(t.基本画像) ? t.基本画像 : [],
   試飲記録: Array.isArray(t.試飲記録) ? t.試飲記録 : [],
   丁寧編: t.丁寧編 || {茶器:"",投茶量:"",水温:"",手順:""},
@@ -459,8 +460,11 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
                       borderRadius:4,padding:"3px 10px",fontSize:11,letterSpacing:1.5,fontWeight:600}}>{tea.分類}</span>
                     {tea.場所&&<span style={{fontSize:11,color:"#8a7060"}}>📍 {tea.場所}</span>}
                   </div>
-                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:26,fontStyle:"italic",color:"#1c1510",lineHeight:1.2,marginBottom:4}}>
-                    {tea.名前||"（名前未入力）"}
+                  <div style={{display:"flex",alignItems:"baseline",gap:8}}>
+                    {tea.No&&<span style={{fontSize:13,color:"#b89a5c",letterSpacing:2,fontFamily:"'Cormorant Garamond',serif"}}>No.{tea.No}</span>}
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:26,fontStyle:"italic",color:"#1c1510",lineHeight:1.2}}>
+                      {tea.名前||"（名前未入力）"}
+                    </div>
                   </div>
                   {tea.ひながら&&<div style={{fontSize:12,color:"#8a7060",marginBottom:8}}>{tea.ひながら}</div>}
                   <div style={{height:1,background:"#ede8de",margin:"10px 0"}}/>
@@ -521,6 +525,17 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
             {/* Tab body */}
             <div style={{padding:isMobile?"14px 14px 80px 14px":"24px",display:"flex",flexDirection:"column",gap:16,flex:"1 1 0",minHeight:0,overflowY:"scroll",WebkitOverflowScrolling:"touch"}}>
               {tab===0&&<>
+                <div style={{display:"flex",alignItems:"flex-end",gap:10,marginBottom:4}}>
+                  <div style={{width:100}}>
+                    <label style={LBL}>NO.</label>
+                    <input style={{...FI,fontSize:20,fontWeight:600,textAlign:"center",letterSpacing:2}}
+                      placeholder="01" value={form?.No||""} onChange={e=>setF("No",e.target.value)}/>
+                  </div>
+                  <div style={{flex:1}}>
+                    <label style={LBL}>お茶名 <span style={{color:"#c05040"}}>*</span></label>
+                    <input style={{...FI,fontSize:16}} placeholder="例：大紅袍…" value={form?.名前||""} onChange={e=>setF("名前",e.target.value)}/>
+                  </div>
+                </div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
                   <div><label style={LBL}>お茶分類</label>
                     <select style={{...FI,appearance:"none",cursor:"pointer"}} value={form?.分類||"緑茶"} onChange={e=>setF("分類",e.target.value)}>
@@ -528,8 +543,7 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
                   <div><label style={LBL}>場所 · 産地</label>
                     <input style={FI} placeholder="例：福建省武夷山" value={form?.場所||""} onChange={e=>setF("場所",e.target.value)}/></div>
                 </div>
-                <div><label style={LBL}>お茶名 <span style={{color:"#c05040"}}>*</span></label>
-                  <input style={{...FI,fontSize:16}} placeholder="例：大紅袍…" value={form?.名前||""} onChange={e=>setF("名前",e.target.value)}/></div>
+
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
                   <div><label style={LBL}>ひながら</label>
                     <input style={FI} placeholder="例：一芽二葉、春摘み" value={form?.ひながら||""} onChange={e=>setF("ひながら",e.target.value)}/></div>
