@@ -488,8 +488,7 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
           <div onClick={e=>e.stopPropagation()} style={{background:"#faf6ee",
             borderRadius:isMobile?"16px 16px 0 0":16,width:"100%",
             maxWidth:isMobile?"100%":640,
-            height:isMobile?"88vh":"auto",
-            maxHeight:"88vh",
+            height:isMobile?"88vh":"85vh",
             display:"flex",flexDirection:"column",
             boxShadow:"0 24px 60px #1c151044",
             overflow:"hidden"}}>
