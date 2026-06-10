@@ -43,7 +43,8 @@ const NAV = [
   { id:"pilgrimage", label:"茶景巡礼",    en:"カンちゃんコラム", icon:"🗾" },
   { id:"report",     label:"活動レポート", en:"先月の活動",       icon:"📸" },
   { id:"events",     label:"活動予告",    en:"今月のイベント",   icon:"📅" },
-  { id:"guest",      label:"ゲスト専攻",  en:"客座老師",         icon:"👤" },
+  { id:"guest",      label:"ゲストコラム", en:"Guest Column",     icon:"👤" },
+  { id:"other",      label:"その他",       en:"Others",           icon:"📋" },
   { id:"gift",       label:"ギフト",      en:"Monthly Gift",    icon:"🎁" },
 ];
 
@@ -355,6 +356,83 @@ function MultiEntrySection({ sectionId, year, month, notify, title, subtitle }) 
   );
 }
 
+
+// ─── GuestColumn ──────────────────────────────────────────────────────────────
+function GuestColumn({ year, month, notify }) {
+  const DEF = { author:"", colTitle:"", body:"", images:[], profileImg:"", profileBio:"" };
+  const [data, setData] = useState(DEF);
+  const [saving, setSaving] = useState(false);
+  const profileRef = useRef();
+
+  useEffect(() => { loadS("guest",year,month).then(d => setData(d||DEF)); }, [year,month]);
+  const save = async () => { setSaving(true); await saveS("guest",year,month,data); setSaving(false); notify("保存しました ✓"); };
+  const setK = (k,v) => setData(p => ({...p,[k]:v}));
+
+  const handleProfileImg = (e) => {
+    const file = e.target.files?.[0]; if(!file) return;
+    compressImg(file).then(src => setK("profileImg", src));
+  };
+
+  return (
+    <div>
+      <SectionHeader title="ゲストコラム" subtitle="Guest Column" />
+      <div style={SBOX}>
+        <div>
+          <label style={LBL}>著者名</label>
+          <input style={FI} value={data.author} onChange={e=>setK("author",e.target.value)} placeholder="例：山田花子" />
+        </div>
+        <div>
+          <label style={LBL}>タイトル</label>
+          <input style={FI} value={data.colTitle} onChange={e=>setK("colTitle",e.target.value)} placeholder="今月のタイトル…" />
+        </div>
+        <div>
+          <label style={LBL}>本文</label>
+          <textarea style={{...FI,resize:"vertical",lineHeight:1.9}} rows={10}
+            value={data.body} onChange={e=>setK("body",e.target.value)} placeholder="本文をこちらに…" />
+        </div>
+        <PhotoGallery images={data.images||[]} onChange={imgs=>setK("images",imgs)} showCaption={true} />
+
+        {/* Profile section */}
+        <div style={{borderTop:"1px solid #ede8de",paddingTop:16}}>
+          <div style={{fontSize:13,letterSpacing:2,color:"#5a4a3a",fontWeight:600,marginBottom:14}}>
+            ゲストプロフィール
+          </div>
+          <div style={{display:"flex",gap:16,alignItems:"flex-start"}}>
+            {/* Profile photo */}
+            <div style={{flexShrink:0}}>
+              {data.profileImg ? (
+                <div style={{position:"relative",width:100,height:100}}>
+                  <img src={data.profileImg} alt="" style={{width:100,height:100,borderRadius:"50%",objectFit:"cover",display:"block",border:"2px solid #e8e0d0"}}/>
+                  <button onClick={()=>setK("profileImg","")} style={{position:"absolute",top:-4,right:-4,
+                    background:"#a05040",color:"#fff",border:"none",borderRadius:"50%",
+                    width:20,height:20,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>×</button>
+                </div>
+              ) : (
+                <div onClick={()=>profileRef.current?.click()} style={{
+                  width:100,height:100,borderRadius:"50%",border:"1.5px dashed #c9b070",
+                  display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+                  cursor:"pointer",gap:4,background:"#faf6ee"}}>
+                  <span style={{fontSize:22,color:"#c9b070"}}>＋</span>
+                  <span style={{fontSize:9,color:"#8a7060",letterSpacing:1}}>写真</span>
+                </div>
+              )}
+              <input ref={profileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleProfileImg}/>
+            </div>
+            {/* Profile bio */}
+            <div style={{flex:1}}>
+              <label style={LBL}>プロフィール</label>
+              <textarea style={{...FI,resize:"vertical",lineHeight:1.8}} rows={5}
+                value={data.profileBio} onChange={e=>setK("profileBio",e.target.value)}
+                placeholder="ゲストの経歴、活動、紹介文など…" />
+            </div>
+          </div>
+        </div>
+      </div>
+      <SaveBar onSave={save} saving={saving} />
+    </div>
+  );
+}
+
 // ─── GenericColumn (for hiroko, pilgrimage, report, events, guest) ────────────
 function GenericColumn({ sectionId, year, month, notify, title, subtitle, extraFields=[], showCaption=true }) {
   const buildDef = () => { const d = {colTitle:"", body:"", images:[]}; extraFields.forEach(f=>d[f.key]=""); return d; };
@@ -551,8 +629,16 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
                   <div><label style={LBL}>収穫日</label>
                     <input style={FI} placeholder="例：2025年4月清明前" value={form?.収穫日||""} onChange={e=>setF("収穫日",e.target.value)}/></div>
                 </div>
-                <div><label style={LBL}>説明</label>
-                  <textarea style={{...FI,resize:"vertical",lineHeight:1.8}} rows={4} value={form?.説明||""} onChange={e=>setF("説明",e.target.value)} placeholder="風味・香り…"/></div>
+                <div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
+                    <label style={LBL}>説明</label>
+                    <span style={{fontSize:11,color:(form?.説明||"").length>400?"#c05040":"#8a7060"}}>
+                      {(form?.説明||"").length}/400
+                    </span>
+                  </div>
+                  <textarea style={{...FI,resize:"vertical",lineHeight:1.8,borderColor:(form?.説明||"").length>400?"#c05040":"#e0d8cc"}}
+                    rows={4} maxLength={400} value={form?.説明||""} onChange={e=>setF("説明",e.target.value)} placeholder="風味・香り…"/>
+                </div>
                 <div><label style={LBL}>おやつのおすすめ</label>
                   <input style={FI} placeholder="例：和三盆、くるみ餅…" value={form?.おやつ||""} onChange={e=>setF("おやつ",e.target.value)}/></div>
               </>}
@@ -685,9 +771,9 @@ export default function ChayozineApp() {
                            title="活動レポート" subtitle="先月の活動報告 — 複数追加可" />;
       case "events":     return <MultiEntrySection sectionId="events" year={year} month={month} notify={notify}
                            title="活動予告" subtitle="今月のイベント情報 — 複数追加可" />;
-      case "guest":      return <GenericColumn sectionId="guest" year={year} month={month} notify={notify}
-                           title="ゲスト専攻" subtitle="客座老師コラム" showCaption={true}
-                           extraFields={[{key:"author", label:"著者名", ph:"例：山田花子"}]}/>;
+      case "guest":      return <GuestColumn year={year} month={month} notify={notify} />;
+      case "other":      return <GenericColumn sectionId="other" year={year} month={month} notify={notify}
+                           title="その他" subtitle="Other" showCaption={true}/>;
       default: return null;
     }
   };
