@@ -849,42 +849,80 @@ function TeaLibrarySection({ notify, isMobile, onModalChange }) {
       {loading ? (
         <div style={{textAlign:"center",color:"#8a7060",padding:"40px 0"}}>読み込み中…</div>
       ) : (
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:20}}>
-          {teas.map((tea,i) => {
-            const inf = tInfo(tea.分類); const d = done(tea);
+        <div style={{display:"flex",flexDirection:"column",gap:24}}>
+          {/* Add button at top */}
+          <button onClick={openAdd} style={{
+            border:"1.5px dashed #c9b070",borderRadius:10,padding:"14px",background:"none",
+            cursor:"pointer",color:"#8a7060",fontSize:13,letterSpacing:2,
+            display:"flex",alignItems:"center",justifyContent:"center",gap:10,transition:"background .2s"}}
+            onMouseOver={e=>e.currentTarget.style.background="#f5eedc"}
+            onMouseOut={e=>e.currentTarget.style.background="none"}>
+            <span style={{fontSize:18,color:"#b89a5c"}}>＋</span> 茶葉を追加
+          </button>
+
+          {/* Grouped by category */}
+          {TEA_TYPES.map(type => {
+            const group = teas.filter(t => t.分類 === type.label);
+            if (group.length === 0) return null;
             return (
-              <div key={tea.id} onClick={()=>openEdit(tea)}
-                style={{background:"#fff",border:"1px solid #e8e0d0",borderRadius:14,overflow:"hidden",cursor:"pointer",transition:"transform .18s,box-shadow .18s"}}
-                onMouseOver={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 8px 28px #1c151014"}}
-                onMouseOut={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none"}}>
-                <div style={{height:5,background:inf.color,opacity:.7}}/>
-                <div style={{padding:"16px 18px 18px"}}>
-                  <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap",alignItems:"center"}}>
-                    <span style={{background:inf.bg,color:inf.color,border:`1px solid ${inf.border}`,borderRadius:4,padding:"3px 10px",fontSize:11,letterSpacing:1.5,fontWeight:600}}>{tea.分類}</span>
-                    {tea.場所&&<span style={{fontSize:11,color:"#8a7060"}}>📍 {tea.場所}</span>}
-                  </div>
-                  <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:4}}>
-                    {tea.No&&<span style={{fontSize:12,color:"#b89a5c",letterSpacing:2,fontFamily:"'Cormorant Garamond',serif"}}>No.{tea.No}</span>}
-                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontStyle:"italic",color:"#1c1510",lineHeight:1.2}}>
-                      {tea.名前||"（名前未入力）"}
-                    </div>
-                  </div>
-                  {tea.ひながら&&<div style={{fontSize:11,color:"#8a7060",marginBottom:6}}>{tea.ひながら}</div>}
-                  {tea.基本画像?.[0]?.src&&<div style={{marginBottom:8,borderRadius:6,overflow:"hidden",height:80}}><img src={tea.基本画像[0].src} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>}
-                  <div style={{display:"flex",justifyContent:"flex-end",marginTop:8}}>
-                    <div style={{display:"flex",gap:4}}>{TEA_TABS.map((_,di)=><div key={di} style={{width:7,height:7,borderRadius:"50%",background:d[di]?inf.color:"#e0d8cc",opacity:d[di]?.85:.35}}/>)}</div>
-                  </div>
+              <div key={type.label}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+                  <div style={{width:10,height:10,borderRadius:"50%",background:type.color}}/>
+                  <span style={{fontSize:14,letterSpacing:2,color:"#5a4a3a",fontWeight:600}}>{type.label}</span>
+                  <span style={{fontSize:11,color:"#8a7060"}}>{group.length}件</span>
+                  <div style={{flex:1,height:1,background:"#ede8de"}}/>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:8}}>
+                  {group.map(tea => {
+                    const d = done(tea);
+                    return (
+                      <div key={tea.id} onClick={()=>openEdit(tea)}
+                        style={{background:"#fff",border:"1px solid #e8e0d0",borderRadius:8,
+                          padding:"10px 12px",cursor:"pointer",display:"flex",alignItems:"center",gap:10,
+                          transition:"border-color .15s,box-shadow .15s"}}
+                        onMouseOver={e=>{e.currentTarget.style.borderColor=type.color;e.currentTarget.style.boxShadow="0 2px 10px #1c15100f"}}
+                        onMouseOut={e=>{e.currentTarget.style.borderColor="#e8e0d0";e.currentTarget.style.boxShadow="none"}}>
+                        {tea.基本画像?.[0]?.src
+                          ? <img src={tea.基本画像[0].src} alt="" style={{width:36,height:36,borderRadius:6,objectFit:"cover",flexShrink:0}}/>
+                          : <div style={{width:36,height:36,borderRadius:6,background:type.bg,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>🍵</div>}
+                        <div style={{flex:1,minWidth:0}}>
+                          <div style={{fontSize:13,color:"#1c1510",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                            {tea.No&&<span style={{color:"#b89a5c",fontSize:11,marginRight:5}}>No.{tea.No}</span>}
+                            {tea.名前||"（名前未入力）"}
+                          </div>
+                          <div style={{display:"flex",alignItems:"center",gap:6,marginTop:3}}>
+                            {tea.場所&&<span style={{fontSize:10,color:"#8a7060",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{tea.場所}</span>}
+                            <div style={{display:"flex",gap:3,marginLeft:"auto",flexShrink:0}}>
+                              {TEA_TABS.map((_,di)=><div key={di} style={{width:5,height:5,borderRadius:"50%",background:d[di]?type.color:"#e0d8cc",opacity:d[di]?.85:.35}}/>)}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );
           })}
-          <div onClick={openAdd}
-            style={{border:"1.5px dashed #c9b070",borderRadius:14,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:10,minHeight:160,cursor:"pointer",transition:"background .2s"}}
-            onMouseOver={e=>e.currentTarget.style.background="#f5eedc"}
-            onMouseOut={e=>e.currentTarget.style.background="transparent"}>
-            <div style={{width:44,height:44,borderRadius:"50%",background:"#f0e8d4",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,color:"#b89a5c"}}>＋</div>
-            <div style={{fontSize:12,letterSpacing:2,color:"#8a7060",textTransform:"uppercase"}}>茶葉を追加</div>
-          </div>
+
+          {/* No-category teas (shouldn't happen but safety) */}
+          {(() => {
+            const known = TEA_TYPES.map(t=>t.label);
+            const others = teas.filter(t => !known.includes(t.分類));
+            if (others.length === 0) return null;
+            return (
+              <div>
+                <div style={{fontSize:13,color:"#8a7060",marginBottom:8}}>未分類（{others.length}件）</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:8}}>
+                  {others.map(tea=>(
+                    <div key={tea.id} onClick={()=>openEdit(tea)} style={{background:"#fff",border:"1px solid #e8e0d0",borderRadius:8,padding:"10px 12px",cursor:"pointer",fontSize:13}}>
+                      {tea.No&&<span style={{color:"#b89a5c",fontSize:11,marginRight:5}}>No.{tea.No}</span>}{tea.名前}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
       {modal&&form&&(
@@ -1078,9 +1116,16 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
       const newLib = modal==="add" ? [...library, form] : library.map(t => t.id===form.id ? form : t);
       await saveLibrary(newLib);
       setLibrary(newLib);
-      setTeas(refs.map(r => newLib.find(t => t.id === r.teaId)).filter(Boolean).map(normalizeTea));
+      let newRefs = refs;
+      if (modal==="add") {
+        // 新茶は資料庫に保存して、この月にも自動追加
+        newRefs = [...refs, { teaId: form.id, note: "" }];
+        setRefs(newRefs);
+        await saveS("teas", year, month, { mode:"refs", refs:newRefs });
+      }
+      setTeas(newRefs.map(r => newLib.find(t => t.id === r.teaId)).filter(Boolean).map(normalizeTea));
       setSave(false); closeMod();
-      notify("資料庫に保存しました ✓");
+      notify(modal==="add" ? "資料庫に登録し、この月に追加しました ✓" : "資料庫に保存しました ✓");
     } else {
       const u = modal==="add" ? [...teas,form] : teas.map(t=>t.id===form.id?form:t);
       await persist(u); setSave(false); closeMod();
@@ -1149,9 +1194,14 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
             </button>
           )}
           {refMode && (
-            <button onClick={()=>setShowPicker(true)} style={{background:"#1c1510",color:"#c9b070",border:"1px solid #c9b07044",borderRadius:6,padding:"8px 16px",fontSize:12,letterSpacing:2,cursor:"pointer",whiteSpace:"nowrap"}}>
-              ＋ 資料庫から追加
-            </button>
+            <>
+              <button onClick={()=>setShowPicker(true)} style={{background:"#1c1510",color:"#c9b070",border:"1px solid #c9b07044",borderRadius:6,padding:"8px 16px",fontSize:12,letterSpacing:2,cursor:"pointer",whiteSpace:"nowrap"}}>
+                ＋ 資料庫から追加
+              </button>
+              <button onClick={openAdd} style={{background:"#3a6e7a",color:"#f5f0e8",border:"none",borderRadius:6,padding:"8px 16px",fontSize:12,letterSpacing:2,cursor:"pointer",whiteSpace:"nowrap"}}>
+                ✦ 新しいお茶を登録
+              </button>
+            </>
           )}
         </div>
       </div>
