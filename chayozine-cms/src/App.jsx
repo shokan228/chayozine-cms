@@ -35,19 +35,24 @@ const TEA_TYPES = [
 const MONTH_JA = ["一月","二月","三月","四月","五月","六月","七月","八月","九月","十月","十一月","十二月"];
 const MONTH_EN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const TEA_TABS = ["基本情報","淹れ方①","淹れ方②","試飲記録","ストーリー","基本画像"];
-const NAV = [
-  { id:"cover",      label:"表紙",        en:"Cover Images",    icon:"🎨" },
-  { id:"preface",    label:"ごあいさつ",   en:"Preface",         icon:"✍️" },
-  { id:"teas",       label:"月間茶帳",    en:"Tea Catalog",     icon:"🫖" },
-  { id:"library",    label:"茶葉資料庫",  en:"Tea Library",     icon:"📚" },
-  { id:"hiroko",     label:"茶左右記",    en:"荒田博子コラム",   icon:"🍃" },
-  { id:"pilgrimage", label:"茶景巡礼",    en:"カンちゃんコラム", icon:"🗾" },
-  { id:"report",     label:"活動レポート", en:"先月の活動",       icon:"📸" },
-  { id:"events",     label:"活動予告",    en:"今月のイベント",   icon:"📅" },
-  { id:"guest",      label:"ゲストコラム", en:"Guest Column",     icon:"👤" },
-  { id:"other",      label:"その他",       en:"Others",           icon:"📋" },
-  { id:"gift",       label:"ギフト",      en:"Monthly Gift",    icon:"🎁" },
+const NAV_SECTIONS = [
+  { label: "雑誌編集", items: [
+    { id:"cover",      label:"表紙",        en:"Cover Images",    icon:"🎨" },
+    { id:"preface",    label:"ごあいさつ",   en:"Preface",         icon:"✍️" },
+    { id:"teas",       label:"月間茶帳",    en:"Tea Catalog",     icon:"🫖" },
+    { id:"hiroko",     label:"茶左右記",    en:"荒田博子コラム",   icon:"🍃" },
+    { id:"pilgrimage", label:"茶景巡礼",    en:"カンちゃんコラム", icon:"🗾" },
+    { id:"report",     label:"活動レポート", en:"先月の活動",       icon:"📸" },
+    { id:"events",     label:"活動予告",    en:"今月のイベント",   icon:"📅" },
+    { id:"guest",      label:"ゲストコラム", en:"Guest Column",     icon:"👤" },
+    { id:"other",      label:"その他",       en:"Others",           icon:"📋" },
+    { id:"gift",       label:"ギフト",      en:"Monthly Gift",    icon:"🎁" },
+  ]},
+  { label: "茶葉", items: [
+    { id:"library",    label:"茶葉資料庫",  en:"Tea Library",     icon:"📚" },
+  ]},
 ];
+const NAV = NAV_SECTIONS.flatMap(s => s.items);
 
 // ─── Storage (Supabase) ──────────────────────────────────────────────────────
 const SUPA_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -785,15 +790,22 @@ function TeaLibrarySection({ notify, isMobile, onModalChange }) {
   const [saving, setSave]  = useState(false);
   const [showMigrate, setShowMigrate] = useState(false);
 
+  const sortByNo = (arr) => [...arr].sort((a, b) => {
+    const na = parseFloat(a.No), nb = parseFloat(b.No);
+    if (isNaN(na) && isNaN(nb)) return 0;
+    if (isNaN(na)) return 1;  // No無しは後ろ
+    if (isNaN(nb)) return -1;
+    return na - nb;
+  });
   const loadTeas = useCallback(async () => {
     setLoad(true);
     const d = await loadLibrary();
-    setTeas(d.map ? d.map(normalizeTea) : []);
+    setTeas(sortByNo((d.map ? d : []).map(normalizeTea)));
     setLoad(false);
   }, []);
   useEffect(() => { loadTeas(); }, [loadTeas]);
 
-  const persist = async (u) => { await saveLibrary(u); setTeas(u); };
+  const persist = async (u) => { await saveLibrary(u); setTeas(sortByNo(u)); };
   const openAdd  = () => { setForm(mkTea()); setTab(0); setModal("add");  onModalChange?.(true); };
   const openEdit = t  => { setForm(normalizeTea(JSON.parse(JSON.stringify(t)))); setTab(0); setModal("edit"); onModalChange?.(true); };
   const closeMod = () => { setModal(null); setForm(null); onModalChange?.(false); };
@@ -1399,17 +1411,25 @@ export default function ChayozineApp() {
         {!isMobile && (
           <nav style={{width:210,background:"#1c1510",flexShrink:0,overflowY:"auto",
             padding:"16px 12px",display:"flex",flexDirection:"column",gap:2}}>
-            {NAV.map(item => (
-              <button key={item.id} onClick={() => setSection(item.id)}
-                className={`nav-item ${section===item.id?"active":""}`}>
-                <span style={{fontSize:16}}>{item.icon}</span>
-                <div>
-                  <div style={{fontSize:13,color:section===item.id?"#c9b070":"#d0c8bc",letterSpacing:1,fontWeight:section===item.id?600:400}}>
-                    {item.label}
-                  </div>
-                  <div style={{fontSize:10,color:"#7a6a5a",letterSpacing:1}}>{item.en}</div>
+            {NAV_SECTIONS.map((sec, si) => (
+              <div key={si} style={{marginBottom:si<NAV_SECTIONS.length-1?14:0}}>
+                <div style={{fontSize:10,color:"#7a6a5a",letterSpacing:3,textTransform:"uppercase",
+                  padding:"6px 16px 8px",borderBottom:"1px solid #2a2018",marginBottom:6}}>
+                  {sec.label}
                 </div>
-              </button>
+                {sec.items.map(item => (
+                  <button key={item.id} onClick={() => setSection(item.id)}
+                    className={`nav-item ${section===item.id?"active":""}`}>
+                    <span style={{fontSize:16}}>{item.icon}</span>
+                    <div>
+                      <div style={{fontSize:13,color:section===item.id?"#c9b070":"#d0c8bc",letterSpacing:1,fontWeight:section===item.id?600:400}}>
+                        {item.label}
+                      </div>
+                      <div style={{fontSize:10,color:"#7a6a5a",letterSpacing:1}}>{item.en}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
             ))}
           </nav>
         )}
