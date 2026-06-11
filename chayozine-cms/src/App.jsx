@@ -149,7 +149,7 @@ const processImage = async (file, maxW=1400) => {
 };
 
 // ─── Tea helpers ──────────────────────────────────────────────────────────────
-const mkTea = () => ({ id: Date.now().toString(), No:"", 分類:"緑茶", 場所:"", 名前:"", ひながら:"", 収穫日:"", 説明:"", おやつ:"",
+const mkTea = () => ({ id: Date.now().toString(), No:"", 公開:false, 分類:"緑茶", 場所:"", 名前:"", ひながら:"", 収穫日:"", 説明:"", おやつ:"",
   基本画像:[], 丁寧編:{茶器:"",投茶量:"",水温:"",手順:""}, クイック編:{HOT:"",COLD:""}, 試飲記録:[], ストーリー:{内容:"",画像:[]} });
 const tInfo = label => TEA_TYPES.find(t => t.label === label) || TEA_TYPES[0];
 
@@ -158,6 +158,7 @@ const normalizeTea = (t) => ({
   ...mkTea(),
   ...t,
   No: t.No || "",
+  公開: t.公開 === true,
   基本画像: Array.isArray(t.基本画像) ? t.基本画像 : [],
   試飲記録: Array.isArray(t.試飲記録) ? t.試飲記録 : [],
   丁寧編: t.丁寧編 || {茶器:"",投茶量:"",水温:"",手順:""},
@@ -879,9 +880,9 @@ function TeaLibrarySection({ notify, isMobile, onModalChange }) {
                       <div key={tea.id} onClick={()=>openEdit(tea)}
                         style={{background:"#fff",border:"1px solid #e8e0d0",borderRadius:8,
                           padding:"10px 12px",cursor:"pointer",display:"flex",alignItems:"center",gap:10,
-                          transition:"border-color .15s,box-shadow .15s"}}
-                        onMouseOver={e=>{e.currentTarget.style.borderColor=type.color;e.currentTarget.style.boxShadow="0 2px 10px #1c15100f"}}
-                        onMouseOut={e=>{e.currentTarget.style.borderColor="#e8e0d0";e.currentTarget.style.boxShadow="none"}}>
+                          transition:"border-color .15s,box-shadow .15s",opacity:tea.公開?1:0.55}}
+                        onMouseOver={e=>{e.currentTarget.style.borderColor=type.color;e.currentTarget.style.boxShadow="0 2px 10px #1c15100f";e.currentTarget.style.opacity="1"}}
+                        onMouseOut={e=>{e.currentTarget.style.borderColor="#e8e0d0";e.currentTarget.style.boxShadow="none";e.currentTarget.style.opacity=tea.公開?"1":"0.55"}}>
                         {tea.基本画像?.[0]?.src
                           ? <img src={tea.基本画像[0].src} alt="" style={{width:36,height:36,borderRadius:6,objectFit:"cover",flexShrink:0}}/>
                           : <div style={{width:36,height:36,borderRadius:6,background:type.bg,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>🍵</div>}
@@ -891,6 +892,12 @@ function TeaLibrarySection({ notify, isMobile, onModalChange }) {
                             {tea.名前||"（名前未入力）"}
                           </div>
                           <div style={{display:"flex",alignItems:"center",gap:6,marginTop:3}}>
+                            <span style={{
+                              fontSize:9,letterSpacing:1,fontWeight:600,padding:"1px 6px",borderRadius:3,flexShrink:0,
+                              background:tea.公開?"#eaf2e5":"#f0f0f0",
+                              color:tea.公開?"#3a5a2e":"#8a8080",
+                              border:`1px solid ${tea.公開?"#b8d4aa":"#d0c8c0"}`,
+                            }}>{tea.公開?"公開":"非公開"}</span>
                             {tea.場所&&<span style={{fontSize:10,color:"#8a7060",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{tea.場所}</span>}
                             <div style={{display:"flex",gap:3,marginLeft:"auto",flexShrink:0}}>
                               {TEA_TABS.map((_,di)=><div key={di} style={{width:5,height:5,borderRadius:"50%",background:d[di]?type.color:"#e0d8cc",opacity:d[di]?.85:.35}}/>)}
@@ -960,6 +967,35 @@ function LibraryTeaTabBody({ tab, form, setF, isMobile, addRec, setRec, delRec }
   return (
     <div style={{padding:isMobile?"14px 14px 80px 14px":"24px",display:"flex",flexDirection:"column",gap:16,flex:"1 1 0",minHeight:0,overflowY:"scroll",WebkitOverflowScrolling:"touch"}}>
       {tab===0&&<>
+        {/* 公開/非公開トグル */}
+        <div onClick={()=>setF("公開", !form?.公開)} style={{
+          display:"flex",alignItems:"center",gap:14,padding:"12px 16px",borderRadius:10,cursor:"pointer",
+          background:form?.公開?"#eaf2e5":"#f0f0f0",
+          border:`1.5px solid ${form?.公開?"#5c7a4e":"#c0b8b0"}`,
+          transition:"all .2s",userSelect:"none",
+        }}>
+          {/* Toggle switch */}
+          <div style={{
+            width:44,height:24,borderRadius:12,flexShrink:0,
+            background:form?.公開?"#5c7a4e":"#c0b8b0",
+            position:"relative",transition:"background .2s",
+          }}>
+            <div style={{
+              position:"absolute",top:3,left:form?.公開?22:3,
+              width:18,height:18,borderRadius:"50%",background:"#fff",
+              transition:"left .2s",boxShadow:"0 1px 4px #0002",
+            }}/>
+          </div>
+          <div>
+            <div style={{fontSize:15,fontWeight:600,letterSpacing:1,
+              color:form?.公開?"#3a5a2e":"#6a6060"}}>
+              {form?.公開?"公開中":"非公開"}
+            </div>
+            <div style={{fontSize:11,color:form?.公開?"#5c7a4e":"#8a8080",letterSpacing:1,marginTop:2}}>
+              {form?.公開?"茶葉ファインダーに表示されています":"茶葉ファインダーには表示されません"}
+            </div>
+          </div>
+        </div>
         <div style={{display:"flex",alignItems:"flex-end",gap:10,marginBottom:4}}>
           <div style={{width:100}}>
             <label style={LBL}>NO.</label>
@@ -1237,6 +1273,7 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
                   </div>
                   {tea.ひながら&&<div style={{fontSize:12,color:"#8a7060",marginBottom:8}}>{tea.ひながら}</div>}
                   <div style={{height:1,background:"#ede8de",margin:"10px 0"}}/>
+                  <span style={{fontSize:10,letterSpacing:1,fontWeight:600,padding:"2px 8px",borderRadius:3,background:tea.公開?"#eaf2e5":"#f0f0f0",color:tea.公開?"#3a5a2e":"#8a8080",border:`1px solid ${tea.公開?"#b8d4aa":"#d0c8c0"}`}}>{tea.公開?"公開":"非公開"}</span>
                   {tea.説明&&<div style={{fontSize:13,color:"#4a3a2a",lineHeight:1.8,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",marginBottom:8}}>{tea.説明}</div>}
                   {tea.基本画像?.[0]?.src&&<div style={{marginBottom:8,borderRadius:6,overflow:"hidden",height:80}}><img src={tea.基本画像[0].src} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>}
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginTop:8}}>
@@ -1284,6 +1321,7 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
                   </div>
                   {tea.ひながら&&<div style={{fontSize:12,color:"#8a7060",marginBottom:8}}>{tea.ひながら}</div>}
                   <div style={{height:1,background:"#ede8de",margin:"10px 0"}}/>
+                  <span style={{fontSize:10,letterSpacing:1,fontWeight:600,padding:"2px 8px",borderRadius:3,background:tea.公開?"#eaf2e5":"#f0f0f0",color:tea.公開?"#3a5a2e":"#8a8080",border:`1px solid ${tea.公開?"#b8d4aa":"#d0c8c0"}`}}>{tea.公開?"公開":"非公開"}</span>
                   {tea.説明&&<div style={{fontSize:13,color:"#4a3a2a",lineHeight:1.8,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",marginBottom:8}}>{tea.説明}</div>}
                   {tea.ストーリー?.画像?.[0]?.src&&<div style={{marginBottom:8,borderRadius:6,overflow:"hidden",height:70}}><img src={tea.ストーリー.画像[0].src} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>}
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
