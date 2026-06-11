@@ -149,7 +149,7 @@ const processImage = async (file, maxW=1400) => {
 };
 
 // ─── Tea helpers ──────────────────────────────────────────────────────────────
-const mkTea = () => ({ id: Date.now().toString(), No:"", 公開:false, 分類:"緑茶", 場所:"", 名前:"", ひながら:"", 収穫日:"", 説明:"", おやつ:"",
+const mkTea = () => ({ id: Date.now().toString(), No:"", 公開:false, 購入URL:"", 分類:"緑茶", 場所:"", 名前:"", ひながら:"", 収穫日:"", 説明:"", おやつ:"",
   基本画像:[], 丁寧編:{茶器:"",投茶量:"",水温:"",手順:""}, クイック編:{HOT:"",COLD:""}, 試飲記録:[], ストーリー:{内容:"",画像:[]} });
 const tInfo = label => TEA_TYPES.find(t => t.label === label) || TEA_TYPES[0];
 
@@ -159,6 +159,7 @@ const normalizeTea = (t) => ({
   ...t,
   No: t.No || "",
   公開: t.公開 === true,
+  購入URL: t.購入URL || "",
   基本画像: Array.isArray(t.基本画像) ? t.基本画像 : [],
   試飲記録: Array.isArray(t.試飲記録) ? t.試飲記録 : [],
   丁寧編: t.丁寧編 || {茶器:"",投茶量:"",水温:"",手順:""},
@@ -1028,6 +1029,17 @@ function LibraryTeaTabBody({ tab, form, setF, isMobile, addRec, setRec, delRec }
         </div>
         <div><label style={LBL}>おやつのおすすめ</label>
           <input style={FI} placeholder="例：和三盆…" value={form?.おやつ||""} onChange={e=>setF("おやつ",e.target.value)}/></div>
+        <div>
+          <label style={LBL}>購入URL <span style={{color:"#b89a5c",fontWeight:400,letterSpacing:0,textTransform:"none",fontSize:10}}>（任意）</span></label>
+          <input style={{...FI,fontSize:13}} placeholder="https://shop.chayophilosophy.com/items/xxxxxx"
+            value={form?.購入URL||""} onChange={e=>setF("購入URL",e.target.value)}/>
+          {form?.購入URL&&<div style={{marginTop:6,fontSize:11,color:"#3a6e7a"}}>
+            <a href={form.購入URL} target="_blank" rel="noopener noreferrer"
+              style={{color:"#3a6e7a",textDecoration:"underline"}} onClick={e=>e.stopPropagation()}>
+              ↗ リンクを確認
+            </a>
+          </div>}
+        </div>
       </>}
       {tab===1&&<>
         <div style={{fontSize:15,letterSpacing:2,color:"#5a4a3a",fontWeight:600}}>淹れ方１ ーじっくり丁寧編ー</div>
