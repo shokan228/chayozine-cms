@@ -39,6 +39,7 @@ const NAV = [
   { id:"cover",      label:"表紙",        en:"Cover Images",    icon:"🎨" },
   { id:"preface",    label:"ごあいさつ",   en:"Preface",         icon:"✍️" },
   { id:"teas",       label:"月間茶帳",    en:"Tea Catalog",     icon:"🫖" },
+  { id:"library",    label:"茶葉資料庫",  en:"Tea Library",     icon:"📚" },
   { id:"hiroko",     label:"茶左右記",    en:"荒田博子コラム",   icon:"🍃" },
   { id:"pilgrimage", label:"茶景巡礼",    en:"カンちゃんコラム", icon:"🗾" },
   { id:"report",     label:"活動レポート", en:"先月の活動",       icon:"📸" },
@@ -57,6 +58,21 @@ const SUPA_H = {
   "Content-Type": "application/json",
 };
 const sk = (id, y, m) => `chayozine-${id}:${y}-${String(m).padStart(2,"0")}`;
+const LIBRARY_KEY = "tea-library";
+const loadLibrary = async () => {
+  try {
+    const r = await fetch(`${SUPA_URL}/rest/v1/magazine_data?id=eq.${LIBRARY_KEY}&select=value`, { headers: SUPA_H });
+    const rows = await r.json();
+    return rows[0] ? JSON.parse(rows[0].value) : [];
+  } catch { return []; }
+};
+const saveLibrary = async (teas) => {
+  await fetch(`${SUPA_URL}/rest/v1/magazine_data`, {
+    method: "POST", headers: { ...SUPA_H, "Prefer": "resolution=merge-duplicates" },
+    body: JSON.stringify({ id: LIBRARY_KEY, value: JSON.stringify(teas), updated_at: new Date().toISOString() }),
+  });
+};
+const isRefMode = d => d && !Array.isArray(d) && d.mode === "refs";
 const loadS = async (id, y, m) => {
   try {
     const key = sk(id, y, m);
@@ -467,6 +483,422 @@ function GenericColumn({ sectionId, year, month, notify, title, subtitle, extraF
   );
 }
 
+
+// ─── TeaPicker ───────────────────────────────────────────────────────────────
+function TeaPicker({ library, alreadyIds, onConfirm, onClose, isMobile }) {
+  const [q, setQ] = useState("");
+  const [sel, setSel] = useState(new Set());
+  const filtered = library.filter(t =>
+    !q || t.名前?.includes(q) || t.No?.includes(q) || t.分類?.includes(q) || t.場所?.includes(q)
+  );
+  const toggle = id => setSel(p => { const n = new Set(p); n.has(id)?n.delete(id):n.add(id); return n; });
+  return (
+    <div onClick={onClose} style={{position:"fixed",inset:0,background:"#1c151088",zIndex:10001,
+      display:"flex",alignItems:isMobile?"flex-end":"center",justifyContent:"center",padding:isMobile?"0":"20px"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"#faf6ee",borderRadius:isMobile?"16px 16px 0 0":12,
+        width:"100%",maxWidth:560,maxHeight:"80vh",display:"flex",flexDirection:"column",
+        boxShadow:"0 20px 60px #1c151044",overflow:"hidden"}}>
+        <div style={{background:"#1c1510",padding:"16px 20px",display:"flex",gap:12,alignItems:"center"}}>
+          <input value={q} onChange={e=>setQ(e.target.value)} placeholder="茶名・No・分類で検索…"
+            style={{flex:1,padding:"8px 12px",borderRadius:6,border:"none",fontSize:14,outline:"none"}}
+            autoFocus/>
+          <button onClick={onClose} style={{color:"#7a6a5a",fontSize:20,background:"none",border:"none",cursor:"pointer"}}>×</button>
+        </div>
+        <div style={{flex:1,overflowY:"auto",padding:"12px"}}>
+          {filtered.length===0&&<div style={{textAlign:"center",color:"#8a7060",padding:"32px 0",fontSize:13}}>該当なし</div>}
+          {filtered.map(t => {
+            const inf = tInfo(t.分類);
+            const checked = sel.has(t.id);
+            const already = alreadyIds.includes(t.id);
+            return (
+              <div key={t.id} onClick={()=>!already&&toggle(t.id)} style={{
+                display:"flex",alignItems:"center",gap:12,padding:"10px 12px",borderRadius:8,
+                marginBottom:6,cursor:already?"default":"pointer",
+                background:checked?"#f0e8d8":already?"#f5f5f5":"#fff",
+                border:`1px solid ${checked?"#c9b070":already?"#e0e0e0":"#ede8de"}`,
+                opacity:already?0.5:1,
+              }}>
+                <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${checked?"#c9b070":"#d0c8bc"}`,
+                  background:checked?"#c9b070":"transparent",flexShrink:0,
+                  display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  {checked&&<span style={{color:"#fff",fontSize:12,lineHeight:1}}>✓</span>}
+                </div>
+                <div style={{width:6,height:6,borderRadius:"50%",background:inf.color,flexShrink:0}}/>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,color:"#1c1510",fontWeight:500,
+                    overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                    {t.No&&<span style={{color:"#b89a5c",marginRight:6,fontSize:11}}>No.{t.No}</span>}
+                    {t.名前||"（名前未入力）"}
+                  </div>
+                  <div style={{fontSize:11,color:"#8a7060"}}>{t.分類}{t.場所&&` · ${t.場所}`}</div>
+                </div>
+                {already&&<span style={{fontSize:10,color:"#8a7060",letterSpacing:1}}>追加済</span>}
+              </div>
+            );
+          })}
+        </div>
+        <div style={{padding:"12px 16px",borderTop:"1px solid #ede8de",background:"#fff8f2",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{fontSize:12,color:"#8a7060"}}>{sel.size}件選択中</span>
+          <button disabled={sel.size===0} onClick={()=>onConfirm([...sel])}
+            style={{background:"#1c1510",color:"#f5f0e8",border:"none",borderRadius:6,
+              padding:"9px 22px",fontSize:13,letterSpacing:2,cursor:sel.size===0?"default":"pointer",
+              opacity:sel.size===0?0.4:1}}>
+            追加する
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── MigrationPanel ───────────────────────────────────────────────────────────
+function MigrationPanel({ notify }) {
+  const [log, setLog] = useState([]);
+  const [running, setRunning] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const run = async () => {
+    setRunning(true); setLog(["📦 月号データを読み込み中…"]);
+    try {
+      // Load all monthly tea keys
+      const res = await fetch(
+        `${SUPA_URL}/rest/v1/magazine_data?id=like.chayozine-teas:*&select=id,value`,
+        { headers: SUPA_H }
+      );
+      const rows = await res.json();
+      setLog(p=>[...p, `✓ ${rows.length}件の月号データを取得`]);
+
+      // Extract & deduplicate teas by No
+      const teaMap = {}; // dedupeKey → tea
+      const monthMap = {}; // monthId → [tea]
+
+      for (const row of rows) {
+        const data = JSON.parse(row.value);
+        if (!Array.isArray(data)) { setLog(p=>[...p, `⏭ ${row.id} は既に移行済みでスキップ`]); continue; }
+        monthMap[row.id] = data;
+        for (const t of data) {
+          const nt = normalizeTea(t);
+          const key = nt.No ? `No:${nt.No}` : `id:${nt.id}`;
+          if (!teaMap[key]) teaMap[key] = nt;
+        }
+      }
+
+      const libraryTeas = Object.values(teaMap);
+      setLog(p=>[...p, `📚 ${libraryTeas.length}件（重複排除後）を資料庫に保存…`]);
+
+      // Save backups
+      for (const row of rows) {
+        if (!Array.isArray(JSON.parse(row.value))) continue;
+        await fetch(`${SUPA_URL}/rest/v1/magazine_data`, {
+          method:"POST", headers:{...SUPA_H,"Prefer":"resolution=merge-duplicates"},
+          body: JSON.stringify({ id:`backup-${row.id}`, value:row.value, updated_at:new Date().toISOString() })
+        });
+      }
+      setLog(p=>[...p, "✓ バックアップ保存完了"]);
+
+      // Save library
+      await saveLibrary(libraryTeas);
+      setLog(p=>[...p, `✓ 茶葉資料庫に${libraryTeas.length}件保存`]);
+
+      // Update monthly data to ref format
+      for (const [monthId, teas] of Object.entries(monthMap)) {
+        const refs = teas.map(t => {
+          const nt = normalizeTea(t);
+          const key = nt.No ? `No:${nt.No}` : `id:${nt.id}`;
+          return { teaId: teaMap[key].id, note: "" };
+        });
+        await fetch(`${SUPA_URL}/rest/v1/magazine_data`, {
+          method:"POST", headers:{...SUPA_H,"Prefer":"resolution=merge-duplicates"},
+          body: JSON.stringify({ id:monthId, value:JSON.stringify({mode:"refs",refs}), updated_at:new Date().toISOString() })
+        });
+        setLog(p=>[...p, `✓ ${monthId} を参照形式に変換`]);
+      }
+
+      setLog(p=>[...p, "🎉 移行完了！バックアップは backup-chayozine-teas:* に保存済"]);
+      setDone(true);
+    } catch(e) {
+      setLog(p=>[...p, `❌ エラー: ${e.message}`]);
+    }
+    setRunning(false);
+  };
+
+  const restore = async (monthKey) => {
+    const backupKey = `backup-${monthKey}`;
+    const res = await fetch(`${SUPA_URL}/rest/v1/magazine_data?id=eq.${backupKey}&select=value`, { headers: SUPA_H });
+    const rows = await res.json();
+    if (!rows[0]) { alert("バックアップが見つかりません"); return; }
+    await fetch(`${SUPA_URL}/rest/v1/magazine_data`, {
+      method:"POST", headers:{...SUPA_H,"Prefer":"resolution=merge-duplicates"},
+      body: JSON.stringify({ id:monthKey, value:rows[0].value, updated_at:new Date().toISOString() })
+    });
+    notify(`${monthKey} を復元しました`);
+  };
+
+  return (
+    <div style={SBOX}>
+      <div style={{fontSize:14,color:"#5a4a3a",fontWeight:600,letterSpacing:1}}>データ移行ツール</div>
+      <div style={{fontSize:13,color:"#7a6a5a",lineHeight:1.8}}>
+        既存の月号データを茶葉資料庫に統合します。<br/>
+        移行前に自動バックアップを作成するので、元に戻すことができます。
+      </div>
+      {!done && (
+        <button disabled={running} onClick={run} style={{
+          background:running?"#3a2e26":"#1c1510",color:"#f5f0e8",border:"none",
+          borderRadius:7,padding:"11px 24px",fontSize:13,letterSpacing:2,cursor:"pointer",
+          width:"fit-content"}}>
+          {running?"移行中…":"一括移行を開始する"}
+        </button>
+      )}
+      {log.length>0&&(
+        <div style={{background:"#1c1510",borderRadius:8,padding:"14px 16px",fontFamily:"monospace",fontSize:12,color:"#c9b070"}}>
+          {log.map((l,i)=><div key={i}>{l}</div>)}
+        </div>
+      )}
+      {done&&(
+        <div>
+          <div style={{fontSize:12,color:"#8a7060",marginBottom:8}}>復元が必要な場合（月号キーを入力）：</div>
+          <div style={{display:"flex",gap:8}}>
+            <input id="restoreKey" placeholder="例：chayozine-teas:2026-06" style={{...FI,flex:1,fontSize:12}}/>
+            <button onClick={()=>{const v=document.getElementById("restoreKey").value; if(v)restore(v);}}
+              style={{background:"#8a3a2e",color:"#f5f0e8",border:"none",borderRadius:6,
+                padding:"9px 16px",fontSize:12,cursor:"pointer",whiteSpace:"nowrap"}}>
+              復元する
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── TeaLibrarySection ────────────────────────────────────────────────────────
+function TeaLibrarySection({ notify, isMobile, onModalChange }) {
+  const [teas, setTeas]   = useState([]);
+  const [loading, setLoad] = useState(true);
+  const [modal, setModal]  = useState(null);
+  const [form,  setForm]   = useState(null);
+  const [tab,   setTab]    = useState(0);
+  const [saving, setSave]  = useState(false);
+  const [showMigrate, setShowMigrate] = useState(false);
+
+  const loadTeas = useCallback(async () => {
+    setLoad(true);
+    const d = await loadLibrary();
+    setTeas(d.map ? d.map(normalizeTea) : []);
+    setLoad(false);
+  }, []);
+  useEffect(() => { loadTeas(); }, [loadTeas]);
+
+  const persist = async (u) => { await saveLibrary(u); setTeas(u); };
+  const openAdd  = () => { setForm(mkTea()); setTab(0); setModal("add");  onModalChange?.(true); };
+  const openEdit = t  => { setForm(normalizeTea(JSON.parse(JSON.stringify(t)))); setTab(0); setModal("edit"); onModalChange?.(true); };
+  const closeMod = () => { setModal(null); setForm(null); onModalChange?.(false); };
+  const setF = (path, val) => setForm(prev => {
+    const next = JSON.parse(JSON.stringify(prev));
+    const keys = path.split(".");
+    let obj = next;
+    for (let i = 0; i < keys.length-1; i++) obj = obj[keys[i]];
+    obj[keys[keys.length-1]] = val;
+    return next;
+  });
+  const addRec = () => {
+    const ts = new Date().toLocaleString("ja-JP",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"});
+    setForm(p => ({...p, 試飲記録:[...(p.試飲記録||[]),{id:Date.now().toString(),時間:ts,感想:""}]}));
+  };
+  const setRec = (i,k,v) => setForm(p => { const a=JSON.parse(JSON.stringify(p.試飲記録)); a[i][k]=v; return {...p,試飲記録:a}; });
+  const delRec = i => setForm(p => ({...p,試飲記録:p.試飲記録.filter((_,j)=>j!==i)}));
+  const handleSave = async () => {
+    if (!form?.名前?.trim()) return;
+    setSave(true);
+    const u = modal==="add" ? [...teas,form] : teas.map(t=>t.id===form.id?form:t);
+    await persist(u); setSave(false); closeMod();
+    notify(modal==="add"?"資料庫に追加しました ✓":"保存しました ✓");
+  };
+  const handleDelete = async () => {
+    await persist(teas.filter(t=>t.id!==form.id)); closeMod(); notify("削除しました");
+  };
+  const done = t => [!!t.名前,!!(t.丁寧編?.茶器||t.丁寧編?.手順),!!(t.クイック編?.HOT||t.クイック編?.COLD),!!(t.試飲記録?.length),!!(t.ストーリー?.内容||t.ストーリー?.画像?.length),!!(t.基本画像?.length)];
+
+  return (
+    <>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:24}}>
+        <SectionHeader title="茶葉資料庫" subtitle={`Tea Library — 全${teas.length}件`} />
+        <button onClick={()=>setShowMigrate(p=>!p)} style={{fontSize:11,color:"#8a7060",
+          letterSpacing:1,background:"#f0e8d8",border:"1px solid #d4c8b4",borderRadius:5,
+          padding:"5px 12px",cursor:"pointer",marginTop:4,whiteSpace:"nowrap"}}>
+          {showMigrate?"▲ 移行ツールを閉じる":"⚙ データ移行ツール"}
+        </button>
+      </div>
+      {showMigrate&&<div style={{marginBottom:24}}><MigrationPanel notify={notify}/></div>}
+      {loading ? (
+        <div style={{textAlign:"center",color:"#8a7060",padding:"40px 0"}}>読み込み中…</div>
+      ) : (
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:20}}>
+          {teas.map((tea,i) => {
+            const inf = tInfo(tea.分類); const d = done(tea);
+            return (
+              <div key={tea.id} onClick={()=>openEdit(tea)}
+                style={{background:"#fff",border:"1px solid #e8e0d0",borderRadius:14,overflow:"hidden",cursor:"pointer",transition:"transform .18s,box-shadow .18s"}}
+                onMouseOver={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 8px 28px #1c151014"}}
+                onMouseOut={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none"}}>
+                <div style={{height:5,background:inf.color,opacity:.7}}/>
+                <div style={{padding:"16px 18px 18px"}}>
+                  <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap",alignItems:"center"}}>
+                    <span style={{background:inf.bg,color:inf.color,border:`1px solid ${inf.border}`,borderRadius:4,padding:"3px 10px",fontSize:11,letterSpacing:1.5,fontWeight:600}}>{tea.分類}</span>
+                    {tea.場所&&<span style={{fontSize:11,color:"#8a7060"}}>📍 {tea.場所}</span>}
+                  </div>
+                  <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:4}}>
+                    {tea.No&&<span style={{fontSize:12,color:"#b89a5c",letterSpacing:2,fontFamily:"'Cormorant Garamond',serif"}}>No.{tea.No}</span>}
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:24,fontStyle:"italic",color:"#1c1510",lineHeight:1.2}}>
+                      {tea.名前||"（名前未入力）"}
+                    </div>
+                  </div>
+                  {tea.ひながら&&<div style={{fontSize:11,color:"#8a7060",marginBottom:6}}>{tea.ひながら}</div>}
+                  {tea.基本画像?.[0]?.src&&<div style={{marginBottom:8,borderRadius:6,overflow:"hidden",height:80}}><img src={tea.基本画像[0].src} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>}
+                  <div style={{display:"flex",justifyContent:"flex-end",marginTop:8}}>
+                    <div style={{display:"flex",gap:4}}>{TEA_TABS.map((_,di)=><div key={di} style={{width:7,height:7,borderRadius:"50%",background:d[di]?inf.color:"#e0d8cc",opacity:d[di]?.85:.35}}/>)}</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          <div onClick={openAdd}
+            style={{border:"1.5px dashed #c9b070",borderRadius:14,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:10,minHeight:160,cursor:"pointer",transition:"background .2s"}}
+            onMouseOver={e=>e.currentTarget.style.background="#f5eedc"}
+            onMouseOut={e=>e.currentTarget.style.background="transparent"}>
+            <div style={{width:44,height:44,borderRadius:"50%",background:"#f0e8d4",display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,color:"#b89a5c"}}>＋</div>
+            <div style={{fontSize:12,letterSpacing:2,color:"#8a7060",textTransform:"uppercase"}}>茶葉を追加</div>
+          </div>
+        </div>
+      )}
+      {modal&&form&&(
+        <div onClick={closeMod} style={{position:"fixed",inset:0,background:"#1c151088",zIndex:10000,display:"flex",alignItems:isMobile?"flex-end":"flex-start",justifyContent:"center",padding:isMobile?"0":"28px 16px 60px",overflowY:isMobile?"hidden":"auto",WebkitOverflowScrolling:"touch"}}>
+          <div onClick={e=>e.stopPropagation()} style={{background:"#faf6ee",borderRadius:isMobile?"16px 16px 0 0":16,width:"100%",maxWidth:isMobile?"100%":640,height:isMobile?"88vh":"85vh",display:"flex",flexDirection:"column",boxShadow:"0 24px 60px #1c151044",overflow:"hidden"}}>
+            <div style={{background:"#1c1510",padding:"18px 24px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:"#f5f0e8",fontStyle:"italic",fontWeight:300}}>{modal==="add"?"新しいお茶を追加":form.名前||"お茶を編集"}</div>
+                <div style={{fontSize:11,color:"#c9b070",letterSpacing:2,marginTop:2}}>茶葉資料庫</div>
+              </div>
+              <button onClick={closeMod} style={{color:"#7a6a5a",fontSize:22,border:"none",background:"none",cursor:"pointer"}}>×</button>
+            </div>
+            <div style={{background:"#1c1510",padding:"0 20px 14px",display:"flex",gap:4,overflowX:"auto",borderBottom:"1px solid #c9b07022"}}>
+              {TEA_TABS.map((t,i)=>{const d=done(form)[i];return<button key={i} onClick={()=>setTab(i)} style={{padding:"7px 14px",fontSize:12,letterSpacing:1,borderRadius:20,cursor:"pointer",whiteSpace:"nowrap",border:"none",background:tab===i?"#1c1510":d?"#2a2018":"transparent",color:tab===i?"#f5f0e8":d?"#c9b070":"#8a7060"}}>{d&&tab!==i&&<span style={{color:"#c9b070",marginRight:4,fontSize:10}}>✓</span>}{t}</button>;})}
+            </div>
+            <LibraryTeaTabBody tab={tab} form={form} setF={setF} isMobile={isMobile} addRec={addRec} setRec={setRec} delRec={delRec}/>
+            <div style={{padding:"14px 24px",borderTop:"1px solid #ede8de",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fff8f2",flexShrink:0,zIndex:2}}>
+              {modal==="edit"?<button onClick={handleDelete} style={{color:"#a05040",fontSize:12,letterSpacing:1,textDecoration:"underline",border:"none",background:"none",cursor:"pointer"}}>このお茶を削除</button>:<span/>}
+              <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                <div style={{display:"flex",gap:6}}>{TEA_TABS.map((_,i)=><button key={i} onClick={()=>setTab(i)} style={{width:8,height:8,borderRadius:"50%",border:"none",cursor:"pointer",padding:0,background:tab===i?"#1c1510":"#d0c8bc"}}/>)}</div>
+                <button disabled={!form?.名前?.trim()||saving} onClick={handleSave} style={{background:"#1c1510",color:"#f5f0e8",borderRadius:7,padding:"11px 28px",fontSize:13,letterSpacing:2,fontWeight:600,border:"none",cursor:"pointer",opacity:!form?.名前?.trim()||saving?0.4:1}}>
+                  {saving?"保存中…":"全部保存する"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// Shared tab body for library and monthly tea modals
+function LibraryTeaTabBody({ tab, form, setF, isMobile, addRec, setRec, delRec }) {
+  return (
+    <div style={{padding:isMobile?"14px 14px 80px 14px":"24px",display:"flex",flexDirection:"column",gap:16,flex:"1 1 0",minHeight:0,overflowY:"scroll",WebkitOverflowScrolling:"touch"}}>
+      {tab===0&&<>
+        <div style={{display:"flex",alignItems:"flex-end",gap:10,marginBottom:4}}>
+          <div style={{width:100}}>
+            <label style={LBL}>NO.</label>
+            <input style={{...FI,fontSize:20,fontWeight:600,textAlign:"center",letterSpacing:2}} placeholder="01" value={form?.No||""} onChange={e=>setF("No",e.target.value)}/>
+          </div>
+          <div style={{flex:1}}>
+            <label style={LBL}>お茶名 <span style={{color:"#c05040"}}>*</span></label>
+            <input style={{...FI,fontSize:16}} placeholder="例：大紅袍…" value={form?.名前||""} onChange={e=>setF("名前",e.target.value)}/>
+          </div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+          <div><label style={LBL}>お茶分類</label>
+            <select style={{...FI,appearance:"none",cursor:"pointer"}} value={form?.分類||"緑茶"} onChange={e=>setF("分類",e.target.value)}>
+              {TEA_TYPES.map(t=><option key={t.label}>{t.label}</option>)}</select></div>
+          <div><label style={LBL}>場所 · 産地</label>
+            <input style={FI} placeholder="例：福建省武夷山" value={form?.場所||""} onChange={e=>setF("場所",e.target.value)}/></div>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+          <div><label style={LBL}>ひながら</label>
+            <input style={FI} placeholder="例：一芽二葉" value={form?.ひながら||""} onChange={e=>setF("ひながら",e.target.value)}/></div>
+          <div><label style={LBL}>収穫日</label>
+            <input style={FI} placeholder="例：2025年4月清明前" value={form?.収穫日||""} onChange={e=>setF("収穫日",e.target.value)}/></div>
+        </div>
+        <div>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
+            <label style={LBL}>説明</label>
+            <span style={{fontSize:11,color:(form?.説明||"").length>400?"#c05040":"#8a7060"}}>{(form?.説明||"").length}/400</span>
+          </div>
+          <textarea style={{...FI,resize:"vertical",lineHeight:1.8,borderColor:(form?.説明||"").length>400?"#c05040":"#e0d8cc"}} rows={4} maxLength={400} value={form?.説明||""} onChange={e=>setF("説明",e.target.value)} placeholder="風味・香り…"/>
+        </div>
+        <div><label style={LBL}>おやつのおすすめ</label>
+          <input style={FI} placeholder="例：和三盆…" value={form?.おやつ||""} onChange={e=>setF("おやつ",e.target.value)}/></div>
+      </>}
+      {tab===1&&<>
+        <div style={{fontSize:15,letterSpacing:2,color:"#5a4a3a",fontWeight:600}}>淹れ方１ ーじっくり丁寧編ー</div>
+        <div style={SBOX}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+            <div><label style={LBL}>茶器</label><input style={FI} placeholder="例：蓋碗" value={form?.丁寧編?.茶器||""} onChange={e=>setF("丁寧編.茶器",e.target.value)}/></div>
+            <div><label style={LBL}>投茶量</label><input style={FI} placeholder="例：5g" value={form?.丁寧編?.投茶量||""} onChange={e=>setF("丁寧編.投茶量",e.target.value)}/></div>
+          </div>
+          <div><label style={LBL}>水温</label><input style={FI} placeholder="例：95℃" value={form?.丁寧編?.水温||""} onChange={e=>setF("丁寧編.水温",e.target.value)}/></div>
+          <div><label style={LBL}>手順</label><textarea style={{...FI,resize:"vertical",lineHeight:1.8}} rows={7} value={form?.丁寧編?.手順||""} onChange={e=>setF("丁寧編.手順",e.target.value)} placeholder={"1. 茶器を温湯で温める…"}/></div>
+        </div>
+      </>}
+      {tab===2&&<>
+        <div style={{fontSize:15,letterSpacing:2,color:"#5a4a3a",fontWeight:600}}>淹れ方２ ークイック編ー</div>
+        <div style={SBOX}>
+          <div>
+            <span style={{background:"#f5e8e4",border:"1px solid #d4a89a",borderRadius:4,padding:"3px 14px",fontSize:12,color:"#8a3a2e",letterSpacing:2,fontWeight:600}}>HOT 🍵</span>
+            <textarea style={{...FI,resize:"vertical",lineHeight:1.8,marginTop:10}} rows={4} value={form?.クイック編?.HOT||""} onChange={e=>setF("クイック編.HOT",e.target.value)} placeholder="例：マグカップに茶葉3g…"/>
+          </div>
+          <div style={{height:1,background:"#ede8de"}}/>
+          <div>
+            <span style={{background:"#e4f0f2",border:"1px solid #a0ccd4",borderRadius:4,padding:"3px 14px",fontSize:12,color:"#3a6e7a",letterSpacing:2,fontWeight:600}}>COLD 🧊</span>
+            <textarea style={{...FI,resize:"vertical",lineHeight:1.8,marginTop:10}} rows={4} value={form?.クイック編?.COLD||""} onChange={e=>setF("クイック編.COLD",e.target.value)} placeholder="例：水出し：茶葉5g…"/>
+          </div>
+        </div>
+      </>}
+      {tab===3&&<>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontSize:15,letterSpacing:2,color:"#5a4a3a",fontWeight:600}}>試飲記録</div>
+          <button onClick={addRec} style={{background:"#1c1510",color:"#f5f0e8",borderRadius:6,padding:"7px 16px",fontSize:11,letterSpacing:2,border:"none",cursor:"pointer"}}>＋ 記録を追加</button>
+        </div>
+        {(!form?.試飲記録||form.試飲記録.length===0)&&<div style={{textAlign:"center",padding:"24px 0",color:"#8a7060",fontSize:13}}>まだ試飲記録がありません</div>}
+        {(form?.試飲記録||[]).map((rec,i)=>(
+          <div key={rec.id} style={{background:"#faf6ee",border:"1px solid #e8e0d0",borderRadius:8,padding:"14px 16px",position:"relative"}}>
+            <button onClick={()=>delRec(i)} style={{position:"absolute",top:10,right:12,color:"#c0a090",fontSize:16,border:"none",background:"none",cursor:"pointer"}}>×</button>
+            <div style={{marginBottom:10}}><label style={LBL}>時間</label>
+              <input style={{...FI,maxWidth:240}} value={rec.時間||""} onChange={e=>setRec(i,"時間",e.target.value)}/></div>
+            <div><label style={LBL}>感想</label>
+              <textarea style={{...FI,resize:"vertical",lineHeight:1.8}} rows={3} value={rec.感想||""} onChange={e=>setRec(i,"感想",e.target.value)}/></div>
+          </div>
+        ))}
+      </>}
+      {tab===4&&<>
+        <div style={{fontSize:15,letterSpacing:2,color:"#5a4a3a",fontWeight:600}}>バックグラウンドストーリー</div>
+        <div style={SBOX}>
+          <PhotoGallery images={Array.isArray(form?.ストーリー?.画像)?form.ストーリー.画像:[]} onChange={imgs=>setF("ストーリー.画像",imgs)} showCaption={true}/>
+          <div><label style={LBL}>ストーリー・背景</label>
+            <textarea style={{...FI,resize:"vertical",lineHeight:1.9}} rows={8} value={form?.ストーリー?.内容||""} onChange={e=>setF("ストーリー.内容",e.target.value)} placeholder="産地、生産者、歴史、出会いの物語…"/></div>
+        </div>
+      </>}
+      {tab===5&&<>
+        <div style={{fontSize:15,letterSpacing:2,color:"#5a4a3a",fontWeight:600,marginBottom:8}}>基本画像</div>
+        <div style={{fontSize:12,color:"#8a7060",letterSpacing:1,marginBottom:12,lineHeight:1.7}}>茶葉ファインダーのヒーロー画像として使用。最初の1枚がメイン画像になります。</div>
+        <div style={SBOX}>
+          <PhotoGallery images={Array.isArray(form?.基本画像)?form.基本画像:[]} onChange={imgs=>setF("基本画像",imgs)} showCaption={true}/>
+        </div>
+      </>}
+    </div>
+  );
+}
+
 // ─── TeaSection (full tea catalog with modal) ─────────────────────────────────
 function TeaSection({ year, month, notify, isMobile, onModalChange }) {
   const [teas,  setTeas]   = useState([]);
@@ -475,10 +907,28 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
   const [form,  setForm]   = useState(null);
   const [tab,   setTab]    = useState(0);
   const [saving, setSave]  = useState(false);
+  const [library, setLibrary] = useState([]);
+  const [refs, setRefs] = useState([]); // [{teaId, note}]
+  const [refMode, setRefMode] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
+
   const loadTeas = useCallback(async () => {
     setLoad(true);
-    const d = await loadS("teas", year, month);
-    setTeas(d ? d.map(normalizeTea) : []);
+    const [rawData, lib] = await Promise.all([
+      loadS("teas", year, month),
+      loadLibrary(),
+    ]);
+    setLibrary(lib);
+    if (isRefMode(rawData)) {
+      // New ref format
+      setRefMode(true);
+      const r = rawData.refs || [];
+      setRefs(r);
+      setTeas(r.map(ref => lib.find(t => t.id === ref.teaId)).filter(Boolean).map(normalizeTea));
+    } else {
+      setRefMode(false);
+      setTeas((rawData || []).map(normalizeTea));
+    }
     setLoad(false);
   }, [year, month]);
 
@@ -516,11 +966,109 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
 
   const done = t => [!!t.名前, !!(t.丁寧編?.茶器||t.丁寧編?.手順), !!(t.クイック編?.HOT||t.クイック編?.COLD), !!(t.試飲記録?.length), !!(t.ストーリー?.内容||t.ストーリー?.画像?.length), !!(t.基本画像?.length)];
 
+  const saveRefMode = async (newRefs) => {
+    await saveS("teas", year, month, { mode:"refs", refs: newRefs });
+    notify("保存しました ✓");
+  };
+  const removeRef = async (teaId) => {
+    const newRefs = refs.filter(r => r.teaId !== teaId);
+    setRefs(newRefs);
+    setTeas(newRefs.map(r => library.find(t => t.id === r.teaId)).filter(Boolean).map(normalizeTea));
+    await saveRefMode(newRefs);
+  };
+  const addFromPicker = async (ids) => {
+    const newEntries = ids.map(id => ({ teaId: id, note: "" }));
+    const newRefs = [...refs, ...newEntries];
+    setRefs(newRefs);
+    setTeas(newRefs.map(r => library.find(t => t.id === r.teaId)).filter(Boolean).map(normalizeTea));
+    setShowPicker(false);
+    await saveRefMode(newRefs);
+    notify("追加しました ✓");
+  };
+  const moveRef = async (idx, dir) => {
+    const newRefs = [...refs];
+    const swap = idx + dir;
+    if (swap < 0 || swap >= newRefs.length) return;
+    [newRefs[idx], newRefs[swap]] = [newRefs[swap], newRefs[idx]];
+    setRefs(newRefs);
+    setTeas(newRefs.map(r => library.find(t => t.id === r.teaId)).filter(Boolean).map(normalizeTea));
+    await saveRefMode(newRefs);
+  };
+  const updateNote = async (teaId, note) => {
+    const newRefs = refs.map(r => r.teaId === teaId ? {...r, note} : r);
+    setRefs(newRefs);
+  };
+  const saveNotes = async () => { await saveRefMode(refs); notify("保存しました ✓"); };
+
   return (
     <>
-      <SectionHeader title="月間茶帳" subtitle={`${teas.length} 款のお茶`} />
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20,flexWrap:"wrap",gap:10}}>
+        <SectionHeader title="月間茶帳" subtitle={refMode ? `資料庫から ${teas.length} 款を選択中` : `${teas.length} 款のお茶`} />
+        <div style={{display:"flex",gap:8,alignItems:"center",marginTop:4}}>
+          {!refMode && library.length > 0 && (
+            <button onClick={async()=>{
+              if(window.confirm("資料庫参照モードに切り替えますか？
+現在の月号データは保持されます。")){
+                setRefMode(true);
+                const newRefs = teas.map(t=>({teaId:t.id,note:""})).filter(r=>library.find(t=>t.id===r.teaId));
+                setRefs(newRefs);
+                await saveRefMode(newRefs);
+              }
+            }} style={{fontSize:11,color:"#3a6e7a",letterSpacing:1,background:"#e4f0f2",border:"1px solid #a0ccd4",borderRadius:5,padding:"5px 12px",cursor:"pointer",whiteSpace:"nowrap"}}>
+              📚 資料庫モードに切り替え
+            </button>
+          )}
+          {refMode && (
+            <button onClick={()=>setShowPicker(true)} style={{background:"#1c1510",color:"#c9b070",border:"1px solid #c9b07044",borderRadius:6,padding:"8px 16px",fontSize:12,letterSpacing:2,cursor:"pointer",whiteSpace:"nowrap"}}>
+              ＋ 資料庫から追加
+            </button>
+          )}
+        </div>
+      </div>
+      {showPicker && (
+        <TeaPicker library={library} alreadyIds={refs.map(r=>r.teaId)} onConfirm={addFromPicker} onClose={()=>setShowPicker(false)} isMobile={isMobile}/>
+      )}
       {loading ? (
         <div style={{textAlign:"center",color:"#8a7060",padding:"40px 0",letterSpacing:2}}>読み込み中…</div>
+      ) : refMode ? (
+        /* ── Ref mode: list from library ── */
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          {teas.length===0&&<div style={{textAlign:"center",padding:"40px 0",color:"#8a7060",fontSize:13,letterSpacing:1}}>
+            「＋ 資料庫から追加」ボタンでお茶を選んでください
+          </div>}
+          {teas.map((tea, i) => {
+            const inf = tInfo(tea.分類);
+            const ref = refs.find(r=>r.teaId===tea.id);
+            return (
+              <div key={tea.id} style={{background:"#fff",border:"1px solid #e8e0d0",borderRadius:12,overflow:"hidden",display:"flex",gap:0}}>
+                <div style={{width:5,background:inf.color,opacity:.7,flexShrink:0}}/>
+                <div style={{flex:1,padding:"14px 16px"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                    <div>
+                      <span style={{background:inf.bg,color:inf.color,border:`1px solid ${inf.border}`,borderRadius:4,padding:"2px 8px",fontSize:10,letterSpacing:1.5,fontWeight:600,marginRight:8}}>{tea.分類}</span>
+                      {tea.No&&<span style={{fontSize:11,color:"#b89a5c",letterSpacing:2,marginRight:6}}>No.{tea.No}</span>}
+                      <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontStyle:"italic",color:"#1c1510"}}>{tea.名前}</span>
+                    </div>
+                    <div style={{display:"flex",gap:4,flexShrink:0,marginLeft:8}}>
+                      <button onClick={()=>moveRef(i,-1)} disabled={i===0} style={{background:"#f0e8d4",border:"none",borderRadius:4,width:26,height:26,cursor:"pointer",fontSize:12,opacity:i===0?.3:1}}>↑</button>
+                      <button onClick={()=>moveRef(i,1)} disabled={i===teas.length-1} style={{background:"#f0e8d4",border:"none",borderRadius:4,width:26,height:26,cursor:"pointer",fontSize:12,opacity:i===teas.length-1?.3:1}}>↓</button>
+                      <button onClick={()=>removeRef(tea.id)} style={{background:"#f5e8e4",border:"none",borderRadius:4,width:26,height:26,cursor:"pointer",fontSize:14,color:"#a05040"}}>×</button>
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{...LBL,marginBottom:4}}>月号メモ（任意）</label>
+                    <input style={{...FI,fontSize:13}} placeholder="この月のコメント、特記事項など…"
+                      value={ref?.note||""} onChange={e=>updateNote(tea.id,e.target.value)}
+                      onBlur={saveNotes}/>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {teas.length>0&&<div style={{display:"flex",justifyContent:"flex-end",paddingTop:8}}>
+            <button onClick={saveNotes} style={{background:"#1c1510",color:"#f5f0e8",border:"none",borderRadius:7,padding:"10px 24px",fontSize:12,letterSpacing:2,cursor:"pointer"}}>月号メモを保存</button>
+          </div>}
+        </div>
       ) : (
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:20}}>
           {teas.map((tea,i) => {
@@ -602,126 +1150,7 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
               })}
             </div>
             {/* Tab body */}
-            <div style={{padding:isMobile?"14px 14px 80px 14px":"24px",display:"flex",flexDirection:"column",gap:16,flex:"1 1 0",minHeight:0,overflowY:"scroll",WebkitOverflowScrolling:"touch"}}>
-              {tab===0&&<>
-                <div style={{display:"flex",alignItems:"flex-end",gap:10,marginBottom:4}}>
-                  <div style={{width:100}}>
-                    <label style={LBL}>NO.</label>
-                    <input style={{...FI,fontSize:20,fontWeight:600,textAlign:"center",letterSpacing:2}}
-                      placeholder="01" value={form?.No||""} onChange={e=>setF("No",e.target.value)}/>
-                  </div>
-                  <div style={{flex:1}}>
-                    <label style={LBL}>お茶名 <span style={{color:"#c05040"}}>*</span></label>
-                    <input style={{...FI,fontSize:16}} placeholder="例：大紅袍…" value={form?.名前||""} onChange={e=>setF("名前",e.target.value)}/>
-                  </div>
-                </div>
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-                  <div><label style={LBL}>お茶分類</label>
-                    <select style={{...FI,appearance:"none",cursor:"pointer"}} value={form?.分類||"緑茶"} onChange={e=>setF("分類",e.target.value)}>
-                      {TEA_TYPES.map(t=><option key={t.label}>{t.label}</option>)}</select></div>
-                  <div><label style={LBL}>場所 · 産地</label>
-                    <input style={FI} placeholder="例：福建省武夷山" value={form?.場所||""} onChange={e=>setF("場所",e.target.value)}/></div>
-                </div>
-
-                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-                  <div><label style={LBL}>ひながら</label>
-                    <input style={FI} placeholder="例：一芽二葉、春摘み" value={form?.ひながら||""} onChange={e=>setF("ひながら",e.target.value)}/></div>
-                  <div><label style={LBL}>収穫日</label>
-                    <input style={FI} placeholder="例：2025年4月清明前" value={form?.収穫日||""} onChange={e=>setF("収穫日",e.target.value)}/></div>
-                </div>
-                <div>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}>
-                    <label style={LBL}>説明</label>
-                    <span style={{fontSize:11,color:(form?.説明||"").length>400?"#c05040":"#8a7060"}}>
-                      {(form?.説明||"").length}/400
-                    </span>
-                  </div>
-                  <textarea style={{...FI,resize:"vertical",lineHeight:1.8,borderColor:(form?.説明||"").length>400?"#c05040":"#e0d8cc"}}
-                    rows={4} maxLength={400} value={form?.説明||""} onChange={e=>setF("説明",e.target.value)} placeholder="風味・香り…"/>
-                </div>
-                <div><label style={LBL}>おやつのおすすめ</label>
-                  <input style={FI} placeholder="例：和三盆、くるみ餅…" value={form?.おやつ||""} onChange={e=>setF("おやつ",e.target.value)}/></div>
-              </>}
-              {tab===1&&<>
-                <div style={{display:"flex",alignItems:"center",gap:10}}>
-                  <div style={{width:3,height:22,background:"#b89a5c",borderRadius:2}}/>
-                  <div style={{fontSize:15,letterSpacing:2,color:"#5a4a3a",fontWeight:600}}>淹れ方１ ーじっくり丁寧編ー</div>
-                </div>
-                <div style={SBOX}>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
-                    <div><label style={LBL}>茶器</label><input style={FI} placeholder="例：蓋碗、急須" value={form?.丁寧編?.茶器||""} onChange={e=>setF("丁寧編.茶器",e.target.value)}/></div>
-                    <div><label style={LBL}>投茶量</label><input style={FI} placeholder="例：5g（150mlに対して）" value={form?.丁寧編?.投茶量||""} onChange={e=>setF("丁寧編.投茶量",e.target.value)}/></div>
-                  </div>
-                  <div><label style={LBL}>水温</label><input style={FI} placeholder="例：95℃" value={form?.丁寧編?.水温||""} onChange={e=>setF("丁寧編.水温",e.target.value)}/></div>
-                  <div><label style={LBL}>手順</label>
-                    <textarea style={{...FI,resize:"vertical",lineHeight:1.8}} rows={7} value={form?.丁寧編?.手順||""}
-                      placeholder={"1. 茶器を温湯で温める\n2. 茶葉を投入\n3. 1煎目：10秒で注ぐ…"}
-                      onChange={e=>setF("丁寧編.手順",e.target.value)}/></div>
-                </div>
-              </>}
-              {tab===2&&<>
-                <div style={{display:"flex",alignItems:"center",gap:10}}>
-                  <div style={{width:3,height:22,background:"#b89a5c",borderRadius:2}}/>
-                  <div style={{fontSize:15,letterSpacing:2,color:"#5a4a3a",fontWeight:600}}>淹れ方２ ークイック編ー</div>
-                </div>
-                <div style={SBOX}>
-                  <div>
-                    <span style={{background:"#f5e8e4",border:"1px solid #d4a89a",borderRadius:4,padding:"3px 14px",fontSize:12,color:"#8a3a2e",letterSpacing:2,fontWeight:600}}>HOT 🍵</span>
-                    <textarea style={{...FI,resize:"vertical",lineHeight:1.8,marginTop:10}} rows={5}
-                      value={form?.クイック編?.HOT||""} onChange={e=>setF("クイック編.HOT",e.target.value)}
-                      placeholder="例：マグカップに茶葉3g、95℃のお湯200ml、3分…"/></div>
-                  <div style={{height:1,background:"#ede8de"}}/>
-                  <div>
-                    <span style={{background:"#e4f0f2",border:"1px solid #a0ccd4",borderRadius:4,padding:"3px 14px",fontSize:12,color:"#3a6e7a",letterSpacing:2,fontWeight:600}}>COLD 🧊</span>
-                    <textarea style={{...FI,resize:"vertical",lineHeight:1.8,marginTop:10}} rows={5}
-                      value={form?.クイック編?.COLD||""} onChange={e=>setF("クイック編.COLD",e.target.value)}
-                      placeholder="例：水出し：茶葉5g、水500ml、冷蔵庫8時間…"/></div>
-                </div>
-              </>}
-              {tab===3&&<>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <div style={{fontSize:15,letterSpacing:2,color:"#5a4a3a",fontWeight:600}}>試飲記録</div>
-                  <button onClick={addRec} style={{background:"#1c1510",color:"#f5f0e8",borderRadius:6,
-                    padding:"7px 16px",fontSize:11,letterSpacing:2,border:"none",cursor:"pointer"}}>＋ 記録を追加</button>
-                </div>
-                {(!form.試飲記録||form.試飲記録.length===0) ? (
-                  <div style={{textAlign:"center",padding:"24px 0",color:"#8a7060",fontSize:13}}>まだ試飲記録がありません</div>
-                ) : (Array.isArray(form?.試飲記録)?form.試飲記録:[]).map((rec,i) => (
-                  <div key={rec.id} style={{background:"#faf6ee",border:"1px solid #e8e0d0",borderRadius:8,padding:"14px 16px",position:"relative"}}>
-                    <button onClick={()=>delRec(i)} style={{position:"absolute",top:10,right:12,color:"#c0a090",fontSize:16,border:"none",background:"none",cursor:"pointer"}}>×</button>
-                    <div style={{marginBottom:10}}><label style={LBL}>時間</label>
-                      <input style={{...FI,maxWidth:240}} value={rec.時間} placeholder="例：2025/05/10 14:30" onChange={e=>setRec(i,"時間",e.target.value)}/></div>
-                    <div><label style={LBL}>試飲後の感想</label>
-                      <textarea style={{...FI,resize:"vertical",lineHeight:1.8}} rows={3} value={rec.感想}
-                        placeholder="香り、味わい、余韻…" onChange={e=>setRec(i,"感想",e.target.value)}/></div>
-                  </div>
-                ))}
-              </>}
-              {tab===4&&<>
-                <div style={{fontSize:15,letterSpacing:2,color:"#5a4a3a",fontWeight:600}}>バックグラウンドストーリー</div>
-                <div style={SBOX}>
-                  <PhotoGallery images={Array.isArray(form?.ストーリー?.画像)?form.ストーリー.画像:[]} onChange={imgs=>setF("ストーリー.画像",imgs)} showCaption={true} />
-                  <div><label style={LBL}>ストーリー・背景</label>
-                    <textarea style={{...FI,resize:"vertical",lineHeight:1.9}} rows={8}
-                      value={form?.ストーリー?.内容||""} onChange={e=>setF("ストーリー.内容",e.target.value)}
-                      placeholder="産地、生産者、歴史、出会いの物語…"/></div>
-                </div>
-              </>}
-
-              {tab===5&&<>
-                <div style={{fontSize:15,letterSpacing:2,color:"#5a4a3a",fontWeight:600,marginBottom:8}}>基本画像</div>
-                <div style={{fontSize:12,color:"#8a7060",letterSpacing:1,marginBottom:12,lineHeight:1.7}}>
-                  茶葉ファインダーのヒーロー画像として使用されます。<br/>最初の1枚がメイン画像になります。
-                </div>
-                <div style={SBOX}>
-                  <PhotoGallery
-                    images={Array.isArray(form?.基本画像)?form.基本画像:[]}
-                    onChange={imgs=>setF("基本画像",imgs)}
-                    showCaption={true} />
-                </div>
-              </>}
-            </div>
-            {/* Footer */}
+                        <LibraryTeaTabBody tab={tab} form={form} setF={setF} isMobile={isMobile} addRec={addRec} setRec={setRec} delRec={delRec}/>
             <div style={{padding:"14px 24px",borderTop:"1px solid #ede8de",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#fff8f2",flexShrink:0,zIndex:2}}>
               {modal==="edit"
                 ? <button onClick={handleDel} style={{color:"#a05040",fontSize:12,letterSpacing:1,textDecoration:"underline",border:"none",background:"none",cursor:"pointer"}}>このお茶を削除</button>
@@ -773,6 +1202,7 @@ export default function ChayozineApp() {
   const renderSection = () => {
     switch(section) {
       case "teas":       return <TeaSection year={year} month={month} notify={notify} isMobile={isMobile} onModalChange={setTeaModalOpen}/>;
+      case "library":    return <TeaLibrarySection notify={notify} isMobile={isMobile} onModalChange={setTeaModalOpen}/>;
       case "cover":      return <CoverSection year={year} month={month} notify={notify}/>;
       case "preface":    return <PrefaceSection year={year} month={month} notify={notify}/>;
       case "gift":       return <GiftSection year={year} month={month} notify={notify}/>;
