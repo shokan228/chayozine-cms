@@ -34,7 +34,7 @@ const TEA_TYPES = [
 ];
 const MONTH_JA = ["一月","二月","三月","四月","五月","六月","七月","八月","九月","十月","十一月","十二月"];
 const MONTH_EN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
-const TEA_TABS = ["基本情報","淹れ方①","淹れ方②","試飲記録","ストーリー"];
+const TEA_TABS = ["基本情報","淹れ方①","淹れ方②","試飲記録","ストーリー","基本画像"];
 const NAV = [
   { id:"cover",      label:"表紙",        en:"Cover Images",    icon:"🎨" },
   { id:"preface",    label:"ごあいさつ",   en:"Preface",         icon:"✍️" },
@@ -514,7 +514,7 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
   };
   const handleDel = async () => { await persist(teas.filter(t=>t.id!==form.id)); closeMod(); notify("削除しました"); };
 
-  const done = t => [!!t.名前, !!(t.丁寧編?.茶器||t.丁寧編?.手順), !!(t.クイック編?.HOT||t.クイック編?.COLD), !!(t.試飲記録?.length), !!(t.ストーリー?.内容||t.ストーリー?.画像?.length)];
+  const done = t => [!!t.名前, !!(t.丁寧編?.茶器||t.丁寧編?.手順), !!(t.クイック編?.HOT||t.クイック編?.COLD), !!(t.試飲記録?.length), !!(t.ストーリー?.内容||t.ストーリー?.画像?.length), !!(t.基本画像?.length)];
 
   return (
     <>
@@ -705,6 +705,19 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
                     <textarea style={{...FI,resize:"vertical",lineHeight:1.9}} rows={8}
                       value={form?.ストーリー?.内容||""} onChange={e=>setF("ストーリー.内容",e.target.value)}
                       placeholder="産地、生産者、歴史、出会いの物語…"/></div>
+                </div>
+              </>}
+
+              {tab===5&&<>
+                <div style={{fontSize:15,letterSpacing:2,color:"#5a4a3a",fontWeight:600,marginBottom:8}}>基本画像</div>
+                <div style={{fontSize:12,color:"#8a7060",letterSpacing:1,marginBottom:12,lineHeight:1.7}}>
+                  茶葉ファインダーのヒーロー画像として使用されます。<br/>最初の1枚がメイン画像になります。
+                </div>
+                <div style={SBOX}>
+                  <PhotoGallery
+                    images={Array.isArray(form?.基本画像)?form.基本画像:[]}
+                    onChange={imgs=>setF("基本画像",imgs)}
+                    showCaption={true} />
                 </div>
               </>}
             </div>
