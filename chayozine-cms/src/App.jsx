@@ -1211,44 +1211,52 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
       {loading ? (
         <div style={{textAlign:"center",color:"#8a7060",padding:"40px 0",letterSpacing:2}}>読み込み中…</div>
       ) : refMode ? (
-        /* ── Ref mode: list from library ── */
-        <div style={{display:"flex",flexDirection:"column",gap:12}}>
-          {teas.length===0&&<div style={{textAlign:"center",padding:"40px 0",color:"#8a7060",fontSize:13,letterSpacing:1}}>
-            「＋ 資料庫から追加」ボタンでお茶を選んでください
-          </div>}
-          {teas.map((tea, i) => {
+        /* ── Ref mode: card grid (same style as inline mode) ── */
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:20}}>
+          {teas.map((tea,i) => {
             const inf = tInfo(tea.分類);
-            const ref = refs.find(r=>r.teaId===tea.id);
+            const d   = done(tea);
             return (
-              <div key={tea.id} style={{background:"#fff",border:"1px solid #e8e0d0",borderRadius:12,overflow:"hidden",display:"flex",gap:0}}>
-                <div style={{width:5,background:inf.color,opacity:.7,flexShrink:0}}/>
-                <div style={{flex:1,padding:"14px 16px"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-                    <div onClick={()=>openEdit(tea)} style={{cursor:"pointer"}} title="クリックで詳細を確認・編集">
-                      <span style={{background:inf.bg,color:inf.color,border:`1px solid ${inf.border}`,borderRadius:4,padding:"2px 8px",fontSize:10,letterSpacing:1.5,fontWeight:600,marginRight:8}}>{tea.分類}</span>
-                      {tea.No&&<span style={{fontSize:11,color:"#b89a5c",letterSpacing:2,marginRight:6}}>No.{tea.No}</span>}
-                      <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontStyle:"italic",color:"#1c1510",borderBottom:"1px dashed #c9b070"}}>{tea.名前}</span>
-                      <span style={{fontSize:11,color:"#b89a5c",marginLeft:8}}>詳細 ›</span>
-                    </div>
-                    <div style={{display:"flex",gap:4,flexShrink:0,marginLeft:8}}>
-                      <button onClick={()=>moveRef(i,-1)} disabled={i===0} style={{background:"#f0e8d4",border:"none",borderRadius:4,width:26,height:26,cursor:"pointer",fontSize:12,opacity:i===0?.3:1}}>↑</button>
-                      <button onClick={()=>moveRef(i,1)} disabled={i===teas.length-1} style={{background:"#f0e8d4",border:"none",borderRadius:4,width:26,height:26,cursor:"pointer",fontSize:12,opacity:i===teas.length-1?.3:1}}>↓</button>
-                      <button onClick={()=>removeRef(tea.id)} style={{background:"#f5e8e4",border:"none",borderRadius:4,width:26,height:26,cursor:"pointer",fontSize:14,color:"#a05040"}}>×</button>
+              <div key={tea.id} onClick={()=>openEdit(tea)}
+                style={{background:"#fff",border:"1px solid #e8e0d0",borderRadius:14,overflow:"hidden",cursor:"pointer",
+                  transition:"transform .18s,box-shadow .18s"}}
+                onMouseOver={e=>{e.currentTarget.style.transform="translateY(-3px)";e.currentTarget.style.boxShadow="0 8px 28px #1c151014"}}
+                onMouseOut={e=>{e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none"}}>
+                <div style={{height:5,background:inf.color,opacity:.7}}/>
+                <div style={{padding:"18px 20px 20px"}}>
+                  <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap",alignItems:"center"}}>
+                    <span style={{background:inf.bg,color:inf.color,border:`1px solid ${inf.border}`,
+                      borderRadius:4,padding:"3px 10px",fontSize:11,letterSpacing:1.5,fontWeight:600}}>{tea.分類}</span>
+                    {tea.場所&&<span style={{fontSize:11,color:"#8a7060"}}>📍 {tea.場所}</span>}
+                  </div>
+                  <div style={{display:"flex",alignItems:"baseline",gap:8,marginBottom:4}}>
+                    {tea.No&&<span style={{fontSize:13,color:"#b89a5c",letterSpacing:2,fontFamily:"'Cormorant Garamond',serif"}}>No.{tea.No}</span>}
+                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:26,fontStyle:"italic",color:"#1c1510",lineHeight:1.2}}>
+                      {tea.名前||"（名前未入力）"}
                     </div>
                   </div>
-                  <div>
-                    <label style={{...LBL,marginBottom:4}}>月号メモ（任意）</label>
-                    <input style={{...FI,fontSize:13}} placeholder="この月のコメント、特記事項など…"
-                      value={ref?.note||""} onChange={e=>updateNote(tea.id,e.target.value)}
-                      onBlur={saveNotes}/>
+                  {tea.ひながら&&<div style={{fontSize:12,color:"#8a7060",marginBottom:8}}>{tea.ひながら}</div>}
+                  <div style={{height:1,background:"#ede8de",margin:"10px 0"}}/>
+                  {tea.説明&&<div style={{fontSize:13,color:"#4a3a2a",lineHeight:1.8,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",marginBottom:8}}>{tea.説明}</div>}
+                  {tea.基本画像?.[0]?.src&&<div style={{marginBottom:8,borderRadius:6,overflow:"hidden",height:80}}><img src={tea.基本画像[0].src} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>}
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginTop:8}}>
+                    {tea.収穫日&&<div style={{fontSize:11,color:"#7a6a5a"}}>{tea.収穫日}</div>}
+                    <div style={{display:"flex",gap:4,marginLeft:"auto"}}>
+                      {TEA_TABS.map((_,di)=><div key={di} style={{width:7,height:7,borderRadius:"50%",background:d[di]?inf.color:"#e0d8cc",opacity:d[di]?.85:.35}}/>)}
+                    </div>
                   </div>
                 </div>
               </div>
             );
           })}
-          {teas.length>0&&<div style={{display:"flex",justifyContent:"flex-end",paddingTop:8}}>
-            <button onClick={saveNotes} style={{background:"#1c1510",color:"#f5f0e8",border:"none",borderRadius:7,padding:"10px 24px",fontSize:12,letterSpacing:2,cursor:"pointer"}}>月号メモを保存</button>
-          </div>}
+          <div onClick={openAdd}
+            style={{border:"1.5px dashed #c9b070",borderRadius:14,display:"flex",flexDirection:"column",
+              alignItems:"center",justifyContent:"center",gap:10,minHeight:180,cursor:"pointer",transition:"background .2s"}}
+            onMouseOver={e=>e.currentTarget.style.background="#f5eedc"}
+            onMouseOut={e=>e.currentTarget.style.background="transparent"}>
+            <div style={{width:48,height:48,borderRadius:"50%",background:"#f0e8d4",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,color:"#b89a5c"}}>＋</div>
+            <div style={{fontSize:12,letterSpacing:2,color:"#8a7060",textTransform:"uppercase"}}>茶を追加</div>
+          </div>
         </div>
       ) : (
         <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))",gap:20}}>
