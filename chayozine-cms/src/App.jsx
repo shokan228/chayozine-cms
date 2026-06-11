@@ -1007,8 +1007,7 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
         <div style={{display:"flex",gap:8,alignItems:"center",marginTop:4}}>
           {!refMode && library.length > 0 && (
             <button onClick={async()=>{
-              if(window.confirm("資料庫参照モードに切り替えますか？
-現在の月号データは保持されます。")){
+              if(window.confirm("資料庫参照モードに切り替えますか？ 現在の月号データは保持されます。")){
                 setRefMode(true);
                 const newRefs = teas.map(t=>({teaId:t.id,note:""})).filter(r=>library.find(t=>t.id===r.teaId));
                 setRefs(newRefs);
