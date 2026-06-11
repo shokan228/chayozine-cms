@@ -59,14 +59,18 @@ const SUPA_H = {
 };
 const sk = (id, y, m) => `chayozine-${id}:${y}-${String(m).padStart(2,"0")}`;
 const LIBRARY_KEY = "tea-library";
-const loadLibrary = async () => {
+let _libCache = null; // session cache
+const loadLibrary = async (force=false) => {
+  if (_libCache && !force) return _libCache;
   try {
     const r = await fetch(`${SUPA_URL}/rest/v1/magazine_data?id=eq.${LIBRARY_KEY}&select=value`, { headers: SUPA_H });
     const rows = await r.json();
-    return rows[0] ? JSON.parse(rows[0].value) : [];
-  } catch { return []; }
+    _libCache = rows[0] ? JSON.parse(rows[0].value) : [];
+    return _libCache;
+  } catch { return _libCache || []; }
 };
 const saveLibrary = async (teas) => {
+  _libCache = teas; // update cache immediately
   await fetch(`${SUPA_URL}/rest/v1/magazine_data`, {
     method: "POST", headers: { ...SUPA_H, "Prefer": "resolution=merge-duplicates" },
     body: JSON.stringify({ id: LIBRARY_KEY, value: JSON.stringify(teas), updated_at: new Date().toISOString() }),
@@ -586,33 +590,35 @@ function MigrationPanel({ notify }) {
       const libraryTeas = Object.values(teaMap);
       setLog(p=>[...p, `📚 ${libraryTeas.length}件（重複排除後）を資料庫に保存…`]);
 
-      // Save backups
-      for (const row of rows) {
-        if (!Array.isArray(JSON.parse(row.value))) continue;
-        await fetch(`${SUPA_URL}/rest/v1/magazine_data`, {
+      // Save backups (parallel)
+      setLog(p=>[...p, "💾 バックアップ保存中…"]);
+      await Promise.all(rows
+        .filter(row => Array.isArray(JSON.parse(row.value)))
+        .map(row => fetch(`${SUPA_URL}/rest/v1/magazine_data`, {
           method:"POST", headers:{...SUPA_H,"Prefer":"resolution=merge-duplicates"},
           body: JSON.stringify({ id:`backup-${row.id}`, value:row.value, updated_at:new Date().toISOString() })
-        });
-      }
+        })));
       setLog(p=>[...p, "✓ バックアップ保存完了"]);
 
       // Save library
+      setLog(p=>[...p, "📚 資料庫へ保存中…（画像が多いと時間がかかります）"]);
       await saveLibrary(libraryTeas);
       setLog(p=>[...p, `✓ 茶葉資料庫に${libraryTeas.length}件保存`]);
 
-      // Update monthly data to ref format
-      for (const [monthId, teas] of Object.entries(monthMap)) {
+      // Update monthly data to ref format (parallel)
+      setLog(p=>[...p, "🔗 月号を参照形式に変換中…"]);
+      await Promise.all(Object.entries(monthMap).map(([monthId, teas]) => {
         const refs = teas.map(t => {
           const nt = normalizeTea(t);
           const key = nt.No ? `No:${nt.No}` : `id:${nt.id}`;
           return { teaId: teaMap[key].id, note: "" };
         });
-        await fetch(`${SUPA_URL}/rest/v1/magazine_data`, {
+        return fetch(`${SUPA_URL}/rest/v1/magazine_data`, {
           method:"POST", headers:{...SUPA_H,"Prefer":"resolution=merge-duplicates"},
           body: JSON.stringify({ id:monthId, value:JSON.stringify({mode:"refs",refs}), updated_at:new Date().toISOString() })
         });
-        setLog(p=>[...p, `✓ ${monthId} を参照形式に変換`]);
-      }
+      }));
+      setLog(p=>[...p, `✓ ${Object.keys(monthMap).length}件の月号を変換完了`]);
 
       setLog(p=>[...p, "🎉 移行完了！バックアップは backup-chayozine-teas:* に保存済"]);
       setDone(true);
@@ -958,11 +964,26 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
   const handleSave = async () => {
     if (!form?.名前?.trim()) return;
     setSave(true);
-    const u = modal==="add" ? [...teas,form] : teas.map(t=>t.id===form.id?form:t);
-    await persist(u); setSave(false); closeMod();
-    notify(modal==="add" ? "追加しました ✓" : "保存しました ✓");
+    if (refMode) {
+      const newLib = modal==="add" ? [...library, form] : library.map(t => t.id===form.id ? form : t);
+      await saveLibrary(newLib);
+      setLibrary(newLib);
+      setTeas(refs.map(r => newLib.find(t => t.id === r.teaId)).filter(Boolean).map(normalizeTea));
+      setSave(false); closeMod();
+      notify("資料庫に保存しました ✓");
+    } else {
+      const u = modal==="add" ? [...teas,form] : teas.map(t=>t.id===form.id?form:t);
+      await persist(u); setSave(false); closeMod();
+      notify(modal==="add" ? "追加しました ✓" : "保存しました ✓");
+    }
   };
-  const handleDel = async () => { await persist(teas.filter(t=>t.id!==form.id)); closeMod(); notify("削除しました"); };
+  const handleDel = async () => {
+    if (refMode) {
+      await removeRef(form.id); closeMod(); notify("月号から外しました（資料庫には残ります）");
+    } else {
+      await persist(teas.filter(t=>t.id!==form.id)); closeMod(); notify("削除しました");
+    }
+  };
 
   const done = t => [!!t.名前, !!(t.丁寧編?.茶器||t.丁寧編?.手順), !!(t.クイック編?.HOT||t.クイック編?.COLD), !!(t.試飲記録?.length), !!(t.ストーリー?.内容||t.ストーリー?.画像?.length), !!(t.基本画像?.length)];
 
@@ -1043,10 +1064,11 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
                 <div style={{width:5,background:inf.color,opacity:.7,flexShrink:0}}/>
                 <div style={{flex:1,padding:"14px 16px"}}>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-                    <div>
+                    <div onClick={()=>openEdit(tea)} style={{cursor:"pointer"}} title="クリックで詳細を確認・編集">
                       <span style={{background:inf.bg,color:inf.color,border:`1px solid ${inf.border}`,borderRadius:4,padding:"2px 8px",fontSize:10,letterSpacing:1.5,fontWeight:600,marginRight:8}}>{tea.分類}</span>
                       {tea.No&&<span style={{fontSize:11,color:"#b89a5c",letterSpacing:2,marginRight:6}}>No.{tea.No}</span>}
-                      <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontStyle:"italic",color:"#1c1510"}}>{tea.名前}</span>
+                      <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:20,fontStyle:"italic",color:"#1c1510",borderBottom:"1px dashed #c9b070"}}>{tea.名前}</span>
+                      <span style={{fontSize:11,color:"#b89a5c",marginLeft:8}}>詳細 ›</span>
                     </div>
                     <div style={{display:"flex",gap:4,flexShrink:0,marginLeft:8}}>
                       <button onClick={()=>moveRef(i,-1)} disabled={i===0} style={{background:"#f0e8d4",border:"none",borderRadius:4,width:26,height:26,cursor:"pointer",fontSize:12,opacity:i===0?.3:1}}>↑</button>
