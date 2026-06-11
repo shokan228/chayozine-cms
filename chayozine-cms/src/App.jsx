@@ -114,6 +114,35 @@ const compressImg = (file, maxW=1400) => new Promise(res => {
   reader.readAsDataURL(file);
 });
 
+// ─── Storage upload (images go to Supabase Storage, not the database) ───────
+const STORAGE_BUCKET = "tea-images";
+const dataUrlToBlob = (dataUrl) => {
+  const [meta, b64] = dataUrl.split(",");
+  const mime = meta.match(/data:(.*?);/)[1];
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
+};
+const uploadToStorage = async (dataUrl) => {
+  const blob = dataUrlToBlob(dataUrl);
+  const ext = blob.type === "image/png" ? "png" : "jpg";
+  const filename = `${Date.now()}-${Math.random().toString(36).slice(2,8)}.${ext}`;
+  const res = await fetch(`${SUPA_URL}/storage/v1/object/${STORAGE_BUCKET}/${filename}`, {
+    method: "POST",
+    headers: { "apikey": SUPA_KEY, "Authorization": `Bearer ${SUPA_KEY}`, "Content-Type": blob.type },
+    body: blob,
+  });
+  if (!res.ok) throw new Error(`upload failed: ${res.status}`);
+  return `${SUPA_URL}/storage/v1/object/public/${STORAGE_BUCKET}/${filename}`;
+};
+// Compress then upload — returns a small URL string instead of huge base64
+const processImage = async (file, maxW=1400) => {
+  const dataUrl = await compressImg(file, maxW);
+  try { return await uploadToStorage(dataUrl); }
+  catch { return dataUrl; } // fallback: keep base64 if storage fails
+};
+
 // ─── Tea helpers ──────────────────────────────────────────────────────────────
 const mkTea = () => ({ id: Date.now().toString(), No:"", 分類:"緑茶", 場所:"", 名前:"", ひながら:"", 収穫日:"", 説明:"", おやつ:"",
   基本画像:[], 丁寧編:{茶器:"",投茶量:"",水温:"",手順:""}, クイック編:{HOT:"",COLD:""}, 試飲記録:[], ストーリー:{内容:"",画像:[]} });
@@ -146,12 +175,15 @@ const SBOX = { background:"#fff", border:"1px solid #ede8de", borderRadius:10, p
 // ─── PhotoGallery ─────────────────────────────────────────────────────────────
 function PhotoGallery({ images=[], onChange, showCaption=true }) {
   const ref = useRef();
+  const [uploading, setUploading] = useState(false);
   const addFiles = async (e) => {
     const files = Array.from(e.target.files || []);
+    setUploading(true);
     const newImgs = await Promise.all(files.map(async f => ({
       id: Date.now() + Math.random().toString(36).slice(2),
-      src: await compressImg(f), caption: ""
+      src: await processImage(f), caption: ""
     })));
+    setUploading(false);
     onChange([...images, ...newImgs]);
     e.target.value = "";
   };
@@ -184,8 +216,8 @@ function PhotoGallery({ images=[], onChange, showCaption=true }) {
           gap:8, minHeight:140, cursor:"pointer", transition:"background .2s" }}
           onMouseOver={e=>e.currentTarget.style.background="#f5eedc"}
           onMouseOut={e=>e.currentTarget.style.background="transparent"}>
-          <div style={{ fontSize:26, color:"#c9b070" }}>＋</div>
-          <div style={{ fontSize:11, color:"#8a7060", letterSpacing:1 }}>画像を追加</div>
+          <div style={{ fontSize:26, color:"#c9b070" }}>{uploading?"⏳":"＋"}</div>
+          <div style={{ fontSize:11, color:"#8a7060", letterSpacing:1 }}>{uploading?"アップロード中…":"画像を追加"}</div>
         </div>
       </div>
       <input ref={ref} type="file" accept="image/*" multiple style={{ display:"none" }} onChange={addFiles} />
@@ -390,7 +422,7 @@ function GuestColumn({ year, month, notify }) {
 
   const handleProfileImg = (e) => {
     const file = e.target.files?.[0]; if(!file) return;
-    compressImg(file).then(src => setK("profileImg", src));
+    processImage(file).then(src => setK("profileImg", src));
   };
 
   return (
@@ -555,11 +587,71 @@ function TeaPicker({ library, alreadyIds, onConfirm, onClose, isMobile }) {
   );
 }
 
+// Recursively find & replace base64 images in any JSON value
+const migrateImagesInValue = async (obj, counter) => {
+  if (typeof obj === "string") {
+    if (obj.startsWith("data:image")) {
+      try {
+        const url = await uploadToStorage(obj);
+        counter.count++;
+        return url;
+      } catch { return obj; }
+    }
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    const out = [];
+    for (const item of obj) out.push(await migrateImagesInValue(item, counter));
+    return out;
+  }
+  if (obj && typeof obj === "object") {
+    const out = {};
+    for (const [k, v] of Object.entries(obj)) out[k] = await migrateImagesInValue(v, counter);
+    return out;
+  }
+  return obj;
+};
+
 // ─── MigrationPanel ───────────────────────────────────────────────────────────
 function MigrationPanel({ notify }) {
   const [log, setLog] = useState([]);
   const [running, setRunning] = useState(false);
   const [done, setDone] = useState(false);
+  const [imgRunning, setImgRunning] = useState(false);
+
+  const runImageMigration = async () => {
+    if (!window.confirm("全データのBase64画像をStorageに移行します。データ量により数分かかります。実行しますか？")) return;
+    setImgRunning(true);
+    setLog(["🖼 画像移行を開始…"]);
+    try {
+      const res = await fetch(`${SUPA_URL}/rest/v1/magazine_data?select=id,value`, { headers: SUPA_H });
+      const rows = await res.json();
+      setLog(p=>[...p, `✓ ${rows.length}件のデータを取得`]);
+      let totalImages = 0;
+      for (const row of rows) {
+        if (row.id.startsWith("backup-")) { continue; } // skip backups
+        if (!row.value.includes("data:image")) { continue; } // no base64 images
+        setLog(p=>[...p, `🔄 ${row.id} を処理中…`]);
+        const data = JSON.parse(row.value);
+        const counter = { count: 0 };
+        const migrated = await migrateImagesInValue(data, counter);
+        if (counter.count > 0) {
+          await fetch(`${SUPA_URL}/rest/v1/magazine_data`, {
+            method: "POST", headers: { ...SUPA_H, "Prefer": "resolution=merge-duplicates" },
+            body: JSON.stringify({ id: row.id, value: JSON.stringify(migrated), updated_at: new Date().toISOString() }),
+          });
+          totalImages += counter.count;
+          setLog(p=>[...p, `  ✓ ${counter.count}枚の画像をStorageへ移行`]);
+        }
+      }
+      _libCache = null; // clear cache to force reload
+      setLog(p=>[...p, `🎉 完了！合計${totalImages}枚の画像を移行しました。ページを再読み込みしてください。`]);
+      notify("画像移行完了 ✓");
+    } catch(e) {
+      setLog(p=>[...p, `❌ エラー: ${e.message}`]);
+    }
+    setImgRunning(false);
+  };
 
   const run = async () => {
     setRunning(true); setLog(["📦 月号データを読み込み中…"]);
@@ -647,14 +739,20 @@ function MigrationPanel({ notify }) {
         既存の月号データを茶葉資料庫に統合します。<br/>
         移行前に自動バックアップを作成するので、元に戻すことができます。
       </div>
-      {!done && (
-        <button disabled={running} onClick={run} style={{
-          background:running?"#3a2e26":"#1c1510",color:"#f5f0e8",border:"none",
-          borderRadius:7,padding:"11px 24px",fontSize:13,letterSpacing:2,cursor:"pointer",
-          width:"fit-content"}}>
-          {running?"移行中…":"一括移行を開始する"}
+      <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+        {!done && (
+          <button disabled={running} onClick={run} style={{
+            background:running?"#3a2e26":"#1c1510",color:"#f5f0e8",border:"none",
+            borderRadius:7,padding:"11px 24px",fontSize:13,letterSpacing:2,cursor:"pointer"}}>
+            {running?"移行中…":"① 資料庫へ一括移行"}
+          </button>
+        )}
+        <button disabled={imgRunning} onClick={runImageMigration} style={{
+          background:imgRunning?"#3a2e26":"#3a6e7a",color:"#f5f0e8",border:"none",
+          borderRadius:7,padding:"11px 24px",fontSize:13,letterSpacing:2,cursor:"pointer"}}>
+          {imgRunning?"画像移行中…":"② 画像をStorageへ移行（高速化）"}
         </button>
-      )}
+      </div>
       {log.length>0&&(
         <div style={{background:"#1c1510",borderRadius:8,padding:"14px 16px",fontFamily:"monospace",fontSize:12,color:"#c9b070"}}>
           {log.map((l,i)=><div key={i}>{l}</div>)}
