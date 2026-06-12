@@ -149,7 +149,7 @@ const processImage = async (file, maxW=1400) => {
 };
 
 // ─── Tea helpers ──────────────────────────────────────────────────────────────
-const mkTea = () => ({ id: Date.now().toString(), No:"", 公開:false, 購入URL:"", 分類:"緑茶", 場所:"", 名前:"", ひながら:"", 収穫日:"", 説明:"", おやつ:"",
+const mkTea = () => ({ id: Date.now().toString(), No:"", 公開:false, 購入URL:"", 朔ノ函収録月:"", 分類:"緑茶", 場所:"", 名前:"", ひながら:"", 収穫日:"", 説明:"", おやつ:"",
   基本画像:[], 丁寧編:{茶器:"",投茶量:"",水温:"",手順:""}, クイック編:{HOT:"",COLD:""}, 試飲記録:[], ストーリー:{内容:"",画像:[]} });
 const tInfo = label => TEA_TYPES.find(t => t.label === label) || TEA_TYPES[0];
 
@@ -160,6 +160,7 @@ const normalizeTea = (t) => ({
   No: t.No || "",
   公開: t.公開 === true,
   購入URL: t.購入URL || "",
+  朔ノ函収録月: t.朔ノ函収録月 || "",
   基本画像: Array.isArray(t.基本画像) ? t.基本画像 : [],
   試飲記録: Array.isArray(t.試飲記録) ? t.試飲記録 : [],
   丁寧編: t.丁寧編 || {茶器:"",投茶量:"",水温:"",手順:""},
@@ -1039,6 +1040,17 @@ function LibraryTeaTabBody({ tab, form, setF, isMobile, addRec, setRec, delRec }
               ↗ リンクを確認
             </a>
           </div>}
+        </div>
+        <div>
+          <label style={LBL}>朔ノ函 収録月 <span style={{color:"#b89a5c",fontWeight:400,letterSpacing:0,textTransform:"none",fontSize:10}}>（任意・単品茶は空欄）</span></label>
+          <input type="month" style={{...FI,maxWidth:200}}
+            value={form?.朔ノ函収録月||""} onChange={e=>setF("朔ノ函収録月",e.target.value)}/>
+          {form?.朔ノ函収録月&&(() => {
+            const [y,m] = form.朔ノ函収録月.split("-");
+            return <div style={{marginTop:6,fontSize:11,color:"#8a7060"}}>
+              表示例：朔ノ函 {y} {parseInt(m)}月号
+            </div>;
+          })()}
         </div>
       </>}
       {tab===1&&<>
