@@ -262,24 +262,51 @@ function SaveBar({ onSave, saving }) {
 
 // ─── CoverSection ─────────────────────────────────────────────────────────────
 function CoverSection({ year, month, notify }) {
-  const [images, setImages] = useState([]);
+  const [frontImages, setFrontImages] = useState([]);
+  const [backImages,  setBackImages]  = useState([]);
   const [saving, setSaving] = useState(false);
   const [coverTitle, setCoverTitle] = useState("");
-  useEffect(() => { loadS("cover",year,month).then(d => { setImages(d?.images||[]); setCoverTitle(d?.title||""); }); }, [year,month]);
-  const save = async () => { setSaving(true); await saveS("cover",year,month,{images, title:coverTitle}); setSaving(false); notify("保存しました ✓"); };
+  useEffect(() => {
+    loadS("cover",year,month).then(d => {
+      // support both old format (images:[]) and new format (front:[], back:[])
+      setCoverTitle(d?.title||"");
+      setFrontImages(d?.front || d?.images || []);
+      setBackImages(d?.back || []);
+    });
+  }, [year,month]);
+  const save = async () => {
+    setSaving(true);
+    await saveS("cover",year,month,{title:coverTitle, front:frontImages, back:backImages});
+    setSaving(false);
+    notify("保存しました ✓");
+  };
   return (
     <div>
-      <SectionHeader title="表紙" subtitle="Cover Images — 複数枚アップロード可、設計師参考用" />
+      <SectionHeader title="表紙" subtitle="Cover Images — 設計師参考用" />
       <div style={SBOX}>
         <div>
           <label style={LBL}>今月のタイトル</label>
           <input style={{...FI, fontSize:18}} value={coverTitle} onChange={e=>setCoverTitle(e.target.value)}
             placeholder="例：五月 一葉知秋" />
         </div>
-        <div style={{ background:"#fff8f2", border:"1px solid #f0e8d0", borderRadius:8, padding:"12px 16px", fontSize:13, color:"#7a6a5a" }}>
-          💡 複数の候補画像をアップロードして、デザイナーに共有できます。
+        {/* 表紙 */}
+        <div>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+            <div style={{width:3,height:20,background:"#b89a5c",borderRadius:2}}/>
+            <span style={{fontSize:14,letterSpacing:2,color:"#5a4a3a",fontWeight:600}}>表紙</span>
+            <span style={{fontSize:11,color:"#8a7060"}}>Front Cover</span>
+          </div>
+          <PhotoGallery images={frontImages} onChange={setFrontImages} showCaption={true} />
         </div>
-        <PhotoGallery images={images} onChange={setImages} showCaption={true} />
+        {/* 裏表紙 */}
+        <div style={{borderTop:"1px solid #ede8de",paddingTop:16}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}>
+            <div style={{width:3,height:20,background:"#8a7060",borderRadius:2}}/>
+            <span style={{fontSize:14,letterSpacing:2,color:"#5a4a3a",fontWeight:600}}>裏表紙</span>
+            <span style={{fontSize:11,color:"#8a7060"}}>Back Cover</span>
+          </div>
+          <PhotoGallery images={backImages} onChange={setBackImages} showCaption={true} />
+        </div>
       </div>
       <SaveBar onSave={save} saving={saving} />
     </div>
