@@ -837,6 +837,11 @@ function TeaLibrarySection({ notify, isMobile, onModalChange }) {
 
   const persist = async (u) => { await saveLibrary(u); setTeas(sortByNo(u)); };
   const openAdd  = () => { setForm(mkTea()); setTab(0); setModal("add");  onModalChange?.(true); };
+  const openCopy = (src) => {
+    const copied = { ...normalizeTea(JSON.parse(JSON.stringify(src))),
+      id: Date.now().toString(), No: "", 名前: `${src.名前}（コピー）`, 公開: false };
+    setForm(copied); setTab(0); setModal("add"); onModalChange?.(true);
+  };
   const openEdit = t  => { setForm(normalizeTea(JSON.parse(JSON.stringify(t)))); setTab(0); setModal("edit"); onModalChange?.(true); };
   const closeMod = () => { setModal(null); setForm(null); onModalChange?.(false); };
   const setF = (path, val) => setForm(prev => {
@@ -906,33 +911,35 @@ function TeaLibrarySection({ notify, isMobile, onModalChange }) {
                   {group.map(tea => {
                     const d = done(tea);
                     return (
-                      <div key={tea.id} onClick={()=>openEdit(tea)}
-                        style={{background:"#fff",border:"1px solid #e8e0d0",borderRadius:8,
-                          padding:"10px 12px",cursor:"pointer",display:"flex",alignItems:"center",gap:10,
+                      <div key={tea.id} style={{background:"#fff",border:"1px solid #e8e0d0",borderRadius:8,
+                          padding:"10px 12px",display:"flex",alignItems:"center",gap:10,
                           transition:"border-color .15s,box-shadow .15s",opacity:tea.公開?1:0.55}}
                         onMouseOver={e=>{e.currentTarget.style.borderColor=type.color;e.currentTarget.style.boxShadow="0 2px 10px #1c15100f";e.currentTarget.style.opacity="1"}}
                         onMouseOut={e=>{e.currentTarget.style.borderColor="#e8e0d0";e.currentTarget.style.boxShadow="none";e.currentTarget.style.opacity=tea.公開?"1":"0.55"}}>
-                        {tea.基本画像?.[0]?.src
-                          ? <img src={tea.基本画像[0].src} alt="" style={{width:36,height:36,borderRadius:6,objectFit:"cover",flexShrink:0}}/>
-                          : <div style={{width:36,height:36,borderRadius:6,background:type.bg,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>🍵</div>}
-                        <div style={{flex:1,minWidth:0}}>
-                          <div style={{fontSize:13,color:"#1c1510",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
-                            {tea.No&&<span style={{color:"#b89a5c",fontSize:11,marginRight:5}}>No.{tea.No}</span>}
-                            {tea.名前||"（名前未入力）"}
-                          </div>
-                          <div style={{display:"flex",alignItems:"center",gap:6,marginTop:3}}>
-                            <span style={{
-                              fontSize:9,letterSpacing:1,fontWeight:600,padding:"1px 6px",borderRadius:3,flexShrink:0,
-                              background:tea.公開?"#eaf2e5":"#f0f0f0",
-                              color:tea.公開?"#3a5a2e":"#8a8080",
-                              border:`1px solid ${tea.公開?"#b8d4aa":"#d0c8c0"}`,
-                            }}>{tea.公開?"公開":"非公開"}</span>
-                            {tea.場所&&<span style={{fontSize:10,color:"#8a7060",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{tea.場所}</span>}
-                            <div style={{display:"flex",gap:3,marginLeft:"auto",flexShrink:0}}>
-                              {TEA_TABS.map((_,di)=><div key={di} style={{width:5,height:5,borderRadius:"50%",background:d[di]?type.color:"#e0d8cc",opacity:d[di]?.85:.35}}/>)}
+                        <div onClick={()=>openEdit(tea)} style={{display:"flex",alignItems:"center",gap:10,flex:1,cursor:"pointer",minWidth:0}}>
+                          {tea.基本画像?.[0]?.src
+                            ? <img src={tea.基本画像[0].src} alt="" style={{width:36,height:36,borderRadius:6,objectFit:"cover",flexShrink:0}}/>
+                            : <div style={{width:36,height:36,borderRadius:6,background:type.bg,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>🍵</div>}
+                          <div style={{flex:1,minWidth:0}}>
+                            <div style={{fontSize:13,color:"#1c1510",fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>
+                              {tea.No&&<span style={{color:"#b89a5c",fontSize:11,marginRight:5}}>No.{tea.No}</span>}
+                              {tea.名前||"（名前未入力）"}
+                            </div>
+                            <div style={{display:"flex",alignItems:"center",gap:6,marginTop:3}}>
+                              <span style={{fontSize:9,letterSpacing:1,fontWeight:600,padding:"1px 6px",borderRadius:3,flexShrink:0,background:tea.公開?"#eaf2e5":"#f0f0f0",color:tea.公開?"#3a5a2e":"#8a8080",border:`1px solid ${tea.公開?"#b8d4aa":"#d0c8c0"}`}}>{tea.公開?"公開":"非公開"}</span>
+                              {tea.場所&&<span style={{fontSize:10,color:"#8a7060",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{tea.場所}</span>}
+                              <div style={{display:"flex",gap:3,marginLeft:"auto",flexShrink:0}}>
+                                {TEA_TABS.map((_,di)=><div key={di} style={{width:5,height:5,borderRadius:"50%",background:d[di]?type.color:"#e0d8cc",opacity:d[di]?.85:.35}}/>)}
+                              </div>
                             </div>
                           </div>
                         </div>
+                        <button onClick={e=>{e.stopPropagation();openCopy(tea);}}
+                          style={{flexShrink:0,background:"#f5f0e8",border:"1px solid #e0d8cc",borderRadius:5,padding:"4px 8px",fontSize:11,color:"#8a7060",cursor:"pointer",whiteSpace:"nowrap"}}
+                          onMouseOver={e=>e.currentTarget.style.background="#ede8de"}
+                          onMouseOut={e=>e.currentTarget.style.background="#f5f0e8"}>
+                          複製
+                        </button>
                       </div>
                     );
                   })}
@@ -1177,6 +1184,11 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
   const persist = async (u) => { await saveS("teas",year,month,u); setTeas(u); };
 
   const openAdd  = () => { setForm(mkTea()); setTab(0); setModal("add"); onModalChange?.(true); };
+  const openCopy = (src) => {
+    const copied = { ...normalizeTea(JSON.parse(JSON.stringify(src))),
+      id: Date.now().toString(), No: "", 名前: `${src.名前}（コピー）`, 公開: false };
+    setForm(copied); setTab(0); setModal("add"); onModalChange?.(true);
+  };
   const openEdit = t  => { setForm(normalizeTea(JSON.parse(JSON.stringify(t)))); setTab(0); setModal("edit"); onModalChange?.(true); };
   const closeMod = () => { setModal(null); setForm(null); onModalChange?.(false); };
 
