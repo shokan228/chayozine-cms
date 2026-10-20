@@ -247,6 +247,75 @@ function SectionHeader({ title, subtitle }) {
   );
 }
 
+// ─── collectImages: recursively gather all image src values ─────────────────
+const collectImages = (obj, acc=[]) => {
+  if (!obj) return acc;
+  if (typeof obj === "string") {
+    if (obj.startsWith("http") || obj.startsWith("data:image")) acc.push(obj);
+    return acc;
+  }
+  if (Array.isArray(obj)) { obj.forEach(v => collectImages(v, acc)); return acc; }
+  if (typeof obj === "object") {
+    // Prioritize named image fields
+    if (obj.src) collectImages(obj.src, acc);
+    else Object.values(obj).forEach(v => collectImages(v, acc));
+  }
+  return acc;
+};
+
+const downloadAllImages = async (sectionLabel, data) => {
+  const urls = collectImages(data);
+  const unique = [...new Set(urls)];
+  if (unique.length === 0) { alert("画像がありません"); return; }
+  if (!window.confirm(`${sectionLabel} の画像 ${unique.length} 枚をまとめてダウンロードします。`)) return;
+
+  for (let i = 0; i < unique.length; i++) {
+    const url = unique[i];
+    try {
+      let blob;
+      if (url.startsWith("data:")) {
+        const [meta, b64] = url.split(",");
+        const mime = meta.match(/data:(.*?);/)[1];
+        const bin = atob(b64);
+        const arr = new Uint8Array(bin.length);
+        for (let j = 0; j < bin.length; j++) arr[j] = bin.charCodeAt(j);
+        blob = new Blob([arr], { type: mime });
+      } else {
+        const res = await fetch(url);
+        blob = await res.blob();
+      }
+      const ext = blob.type.includes("png") ? "png" : "jpg";
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `${sectionLabel}-${String(i+1).padStart(2,"0")}.${ext}`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      await new Promise(r => setTimeout(r, 300)); // slight delay between downloads
+    } catch(e) { console.warn("download failed:", url, e); }
+  }
+};
+
+// ─── DownloadButton ───────────────────────────────────────────────────────────
+function DownloadButton({ label, getData }) {
+  const [loading, setLoading] = useState(false);
+  return (
+    <button
+      disabled={loading}
+      onClick={async () => { setLoading(true); await downloadAllImages(label, await getData()); setLoading(false); }}
+      title={`${label}の画像を一括ダウンロード`}
+      style={{
+        display:"flex",alignItems:"center",gap:6,
+        background:"#f0e8d8",border:"1px solid #d4c8b4",borderRadius:6,
+        padding:"6px 12px",fontSize:11,color:"#5a4a3a",cursor:"pointer",
+        letterSpacing:1,transition:"background .15s",whiteSpace:"nowrap",
+      }}
+      onMouseOver={e=>e.currentTarget.style.background="#e8ddd0"}
+      onMouseOut={e=>e.currentTarget.style.background="#f0e8d8"}>
+      {loading ? "⏬ 準備中…" : "⬇ 画像を一括DL"}
+    </button>
+  );
+}
+
 // ─── SaveBar ──────────────────────────────────────────────────────────────────
 function SaveBar({ onSave, saving }) {
   return (
@@ -282,7 +351,10 @@ function CoverSection({ year, month, notify }) {
   };
   return (
     <div>
-      <SectionHeader title="表紙" subtitle="Cover Images — 設計師参考用" />
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8,marginBottom:28}}>
+        <SectionHeader title="表紙" subtitle="Cover Images — 設計師参考用" />
+        <DownloadButton label="表紙" getData={()=>Promise.resolve({front:frontImages,back:backImages})}/>
+      </div>
       <div style={SBOX}>
         <div>
           <label style={LBL}>今月のタイトル</label>
@@ -322,7 +394,10 @@ function PrefaceSection({ year, month, notify }) {
   const save = async () => { setSaving(true); await saveS("preface",year,month,data); setSaving(false); notify("保存しました ✓"); };
   return (
     <div>
-      <SectionHeader title="ごあいさつ" subtitle="Preface — 巻頭言" />
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8,marginBottom:28}}>
+        <SectionHeader title="ごあいさつ" subtitle="Preface — 巻頭言" />
+        <DownloadButton label="ごあいさつ" getData={()=>Promise.resolve(data)}/>
+      </div>
       <div style={SBOX}>
         <div>
           <label style={LBL}>前言本文</label>
@@ -391,7 +466,10 @@ function MultiEntrySection({ sectionId, year, month, notify, title, subtitle }) 
 
   return (
     <div>
-      <SectionHeader title={title} subtitle={subtitle} />
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8,marginBottom:28}}>
+        <SectionHeader title={title} subtitle={subtitle} />
+        <DownloadButton label={title} getData={()=>Promise.resolve(entries)}/>
+      </div>
       <div style={{display:"flex",flexDirection:"column",gap:24}}>
         {entries.map((entry, i) => (
           <div key={entry.id} style={{...SBOX, position:"relative"}}>
@@ -462,7 +540,10 @@ function GuestColumn({ year, month, notify }) {
 
   return (
     <div>
-      <SectionHeader title="ゲストコラム" subtitle="Guest Column" />
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8,marginBottom:28}}>
+        <SectionHeader title="ゲストコラム" subtitle="Guest Column" />
+        <DownloadButton label="ゲストコラム" getData={()=>Promise.resolve(data)}/>
+      </div>
       <div style={SBOX}>
         <div>
           <label style={LBL}>著者名</label>
@@ -530,7 +611,10 @@ function GenericColumn({ sectionId, year, month, notify, title, subtitle, extraF
   const setK = (k, v) => setData(p => ({...p, [k]:v}));
   return (
     <div>
-      <SectionHeader title={title} subtitle={subtitle} />
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:8,marginBottom:28}}>
+        <SectionHeader title={title} subtitle={subtitle} />
+        <DownloadButton label={title} getData={()=>Promise.resolve(data)}/>
+      </div>
       <div style={SBOX}>
         {extraFields.map(f => (
           <div key={f.key}>
