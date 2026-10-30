@@ -233,9 +233,11 @@ const SBOX = { background:"#fff", border:"1px solid #ede8de", borderRadius:10, p
   display:"flex", flexDirection:"column", gap:18 };
 
 // ─── PhotoGallery ─────────────────────────────────────────────────────────────
-function PhotoGallery({ images=[], onChange, showCaption=true }) {
+function PhotoGallery({ images=[], onChange, showCaption=true, mainLabel="" }) {
   const ref = useRef();
   const [uploading, setUploading] = useState(false);
+  const [dragIdx, setDragIdx] = useState(null);
+  const [overIdx, setOverIdx] = useState(null);
   const addFiles = async (e) => {
     const files = Array.from(e.target.files || []);
     setUploading(true);
@@ -249,20 +251,53 @@ function PhotoGallery({ images=[], onChange, showCaption=true }) {
   };
   const del = id => onChange(images.filter(i => i.id !== id));
   const setCap = (id, cap) => onChange(images.map(i => i.id === id ? {...i, caption:cap} : i));
+  // 並び替え：from の写真を to の位置へ移動
+  const move = (from, to) => {
+    if (from === to || from < 0 || to < 0 || from >= images.length || to >= images.length) return;
+    const next = [...images];
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
+    onChange(next);
+  };
+  const ob = { background:"#1c1510b8", color:"#f5f0e8", border:"none", borderRadius:5, height:24, minWidth:26,
+    fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", padding:"0 6px" };
 
   return (
     <div>
       <div style={LBL}>画像</div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))", gap:10 }}>
-        {images.map(img => (
-          <div key={img.id} style={{ borderRadius:8, overflow:"hidden", border:"1px solid #e8e0d0", background:"#fff" }}>
-            <div style={{ position:"relative" }}>
-              <img src={img.src} alt="" style={{ width:"100%", height:140, objectFit:"cover", display:"block" }} />
+        {images.map((img, idx) => (
+          <div key={img.id}
+            onDragOver={e => { if (dragIdx !== null) { e.preventDefault(); setOverIdx(idx); } }}
+            onDrop={e => { e.preventDefault(); if (dragIdx !== null) move(dragIdx, idx); setDragIdx(null); setOverIdx(null); }}
+            style={{ borderRadius:8, overflow:"hidden", background:"#fff",
+              border: overIdx === idx && dragIdx !== null && dragIdx !== idx ? "2px solid #c9b070" : "1px solid #e8e0d0",
+              opacity: dragIdx === idx ? 0.45 : 1 }}>
+            <div style={{ position:"relative" }}
+              draggable
+              onDragStart={e => { setDragIdx(idx); e.dataTransfer.effectAllowed = "move"; }}
+              onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}>
+              <img src={img.src} alt="" draggable={false} style={{ width:"100%", height:140, objectFit:"cover", display:"block", cursor: images.length > 1 ? "grab" : "default" }} />
+              {/* 順番バッジ */}
+              <div style={{ position:"absolute", top:6, left:6, background: idx === 0 && mainLabel ? "#c9b070" : "#1c1510b8",
+                color: idx === 0 && mainLabel ? "#1c1510" : "#f5f0e8", borderRadius:5, padding:"2px 8px", fontSize:11, fontWeight:600, letterSpacing:1 }}>
+                {idx === 0 && mainLabel ? `${idx+1} ${mainLabel}` : idx+1}
+              </div>
               <button onClick={() => del(img.id)} style={{ position:"absolute", top:6, right:6,
                 background:"#1c151099", color:"#f5f0e8", width:24, height:24, borderRadius:"50%",
                 fontSize:14, border:"none", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
                 ×
               </button>
+              {/* 並び替えボタン（スマホでも使える） */}
+              {images.length > 1 && (
+                <div style={{ position:"absolute", bottom:6, left:6, right:6, display:"flex", gap:4, justifyContent:"space-between" }}>
+                  <div style={{ display:"flex", gap:4 }}>
+                    <button title="最初へ" disabled={idx === 0} onClick={() => move(idx, 0)} style={{ ...ob, opacity: idx === 0 ? 0.35 : 1 }}>⇤</button>
+                    <button title="前へ" disabled={idx === 0} onClick={() => move(idx, idx - 1)} style={{ ...ob, opacity: idx === 0 ? 0.35 : 1 }}>◀</button>
+                  </div>
+                  <button title="後ろへ" disabled={idx === images.length - 1} onClick={() => move(idx, idx + 1)} style={{ ...ob, opacity: idx === images.length - 1 ? 0.35 : 1 }}>▶</button>
+                </div>
+              )}
             </div>
             {showCaption && (
               <input placeholder="キャプション…" value={img.caption} onChange={e => setCap(img.id, e.target.value)}
@@ -1297,7 +1332,7 @@ function LibraryTeaTabBody({ tab, form, setF, isMobile, addRec, setRec, delRec }
         <div style={{fontSize:15,letterSpacing:2,color:"#5a4a3a",fontWeight:600,marginBottom:8}}>基本画像</div>
         <div style={{fontSize:12,color:"#8a7060",letterSpacing:1,marginBottom:12,lineHeight:1.7}}>茶葉ファインダーのヒーロー画像として使用。最初の1枚がメイン画像になります。</div>
         <div style={SBOX}>
-          <PhotoGallery images={Array.isArray(form?.基本画像)?form.基本画像:[]} onChange={imgs=>setF("基本画像",imgs)} showCaption={true}/>
+          <PhotoGallery images={Array.isArray(form?.基本画像)?form.基本画像:[]} onChange={imgs=>setF("基本画像",imgs)} showCaption={true} mainLabel="メイン"/>
         </div>
       </>}
     </div>
