@@ -82,6 +82,47 @@ const saveLibrary = async (teas) => {
   });
 };
 const isRefMode = d => d && !Array.isArray(d) && d.mode === "refs";
+// ─── 衝突安全的更新（讀最新 → 只改自己的部分 → 條件式寫回，衝突就重試）─────────
+const updateRow = async (key, mutate, fallback) => {
+  const q = encodeURIComponent(key);
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const r = await fetch(`${SUPA_URL}/rest/v1/magazine_data?id=eq.${q}&select=value,updated_at`, { headers: SUPA_H });
+    if (!r.ok) throw new Error(`load failed: ${r.status}`);
+    const row = (await r.json())[0];
+    const current = row ? JSON.parse(row.value) : fallback;
+    const next = mutate(current);
+    let stamp = new Date().toISOString();
+    if (row && stamp === row.updated_at) stamp = new Date(Date.now() + 1).toISOString();
+    const payload = { value: JSON.stringify(next), updated_at: stamp };
+    if (!row) {
+      const res = await fetch(`${SUPA_URL}/rest/v1/magazine_data`, {
+        method: "POST", headers: { ...SUPA_H, "Prefer": "return=minimal" },
+        body: JSON.stringify({ id: key, ...payload }),
+      });
+      if (res.ok) return next;
+      continue; // 先に誰かが作成した → 最新を読み直してやり直し
+    }
+    const res = await fetch(`${SUPA_URL}/rest/v1/magazine_data?id=eq.${q}&updated_at=eq.${encodeURIComponent(row.updated_at)}`, {
+      method: "PATCH", headers: { ...SUPA_H, "Prefer": "return=representation" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(`save failed: ${res.status}`);
+    if ((await res.json()).length === 1) return next;
+    // 0件 = 読んだ後に他の人が保存した → 少し待って最新を読み直してやり直し
+    await new Promise(r => setTimeout(r, 40 + Math.random() * 120 * (attempt + 1)));
+  }
+  throw new Error("他の人の保存と重なり続けたため保存できませんでした。もう一度お試しください");
+};
+const updateLibrary = async (mutate) => {
+  const next = await updateRow(LIBRARY_KEY, cur => mutate(Array.isArray(cur) ? cur : []), []);
+  _libCache = next;
+  return next;
+};
+const updateMonthRefs = (y, m, mutate) => updateRow(
+  sk("teas", y, m),
+  cur => ({ mode: "refs", refs: mutate(isRefMode(cur) ? (cur.refs || []) : []) }),
+  { mode: "refs", refs: [] }
+);
 const loadS = async (id, y, m) => {
   try {
     const key = sk(id, y, m);
@@ -152,6 +193,17 @@ const processImage = async (file, maxW=1400) => {
 const mkTea = () => ({ id: Date.now().toString(), No:"", 公開:false, 購入URL:"", 朔ノ函収録月:"", 分類:"緑茶", 場所:"", 名前:"", ひながら:"", 収穫日:"", 説明:"", おやつ:"",
   基本画像:[], 丁寧編:{茶器:"",投茶量:"",水温:"",手順:""}, クイック編:{HOT:"",COLD:""}, 試飲記録:[], ストーリー:{内容:"",画像:[]} });
 const tInfo = label => TEA_TYPES.find(t => t.label === label) || TEA_TYPES[0];
+const fmtTime = (iso, full = false) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  const p = n => String(n).padStart(2, "0");
+  const hm = `${p(d.getHours())}:${p(d.getMinutes())}`;
+  const sameYear = d.getFullYear() === new Date().getFullYear();
+  return (full || !sameYear)
+    ? `${d.getFullYear()}/${p(d.getMonth() + 1)}/${p(d.getDate())} ${hm}`
+    : `${d.getMonth() + 1}/${d.getDate()} ${hm}`;
+};
 
 // Normalize legacy tea data to current schema
 const normalizeTea = (t) => ({
@@ -903,6 +955,7 @@ function TeaLibrarySection({ notify, isMobile, onModalChange }) {
   const [tab,   setTab]    = useState(0);
   const [saving, setSave]  = useState(false);
   const [showMigrate, setShowMigrate] = useState(false);
+  const [baseStamp, setBaseStamp] = useState("");
 
   const sortByNo = (arr) => [...arr].sort((a, b) => {
     const na = parseFloat(a.No), nb = parseFloat(b.No);
@@ -913,20 +966,22 @@ function TeaLibrarySection({ notify, isMobile, onModalChange }) {
   });
   const loadTeas = useCallback(async () => {
     setLoad(true);
-    const d = await loadLibrary();
+    const d = await loadLibrary();            // まずキャッシュで即表示
     setTeas(sortByNo((d.map ? d : []).map(normalizeTea)));
     setLoad(false);
+    const fresh = await loadLibrary(true);    // 裏で最新を取り直して反映（他の人の更新が見える）
+    setTeas(sortByNo((fresh.map ? fresh : []).map(normalizeTea)));
   }, []);
   useEffect(() => { loadTeas(); }, [loadTeas]);
 
   const persist = async (u) => { await saveLibrary(u); setTeas(sortByNo(u)); };
-  const openAdd  = () => { setForm(mkTea()); setTab(0); setModal("add");  onModalChange?.(true); };
+  const openAdd  = () => { setForm(mkTea()); setBaseStamp(""); setTab(0); setModal("add");  onModalChange?.(true); };
   const openCopy = (src) => {
     const copied = { ...normalizeTea(JSON.parse(JSON.stringify(src))),
       id: Date.now().toString(), No: "", 名前: `${src.名前}（コピー）`, 公開: false };
-    setForm(copied); setTab(0); setModal("add"); onModalChange?.(true);
+    setForm(copied); setBaseStamp(""); setTab(0); setModal("add"); onModalChange?.(true);
   };
-  const openEdit = t  => { setForm(normalizeTea(JSON.parse(JSON.stringify(t)))); setTab(0); setModal("edit"); onModalChange?.(true); };
+  const openEdit = t  => { setForm(normalizeTea(JSON.parse(JSON.stringify(t)))); setBaseStamp(t.更新日時 || ""); setTab(0); setModal("edit"); onModalChange?.(true); };
   const closeMod = () => { setModal(null); setForm(null); onModalChange?.(false); };
   const setF = (path, val) => setForm(prev => {
     const next = JSON.parse(JSON.stringify(prev));
@@ -945,12 +1000,29 @@ function TeaLibrarySection({ notify, isMobile, onModalChange }) {
   const handleSave = async () => {
     if (!form?.名前?.trim()) return;
     setSave(true);
-    const u = modal==="add" ? [...teas,form] : teas.map(t=>t.id===form.id?form:t);
-    await persist(u); setSave(false); closeMod();
-    notify(modal==="add"?"資料庫に追加しました ✓":"保存しました ✓");
+    try {
+      if (modal === "edit") {
+        const latest = await loadLibrary(true);
+        const cur = latest.find(t => t.id === form.id);
+        if (cur && (cur.更新日時 || "") !== (baseStamp || "")) {
+          if (!window.confirm("この茶葉は、あなたが開いたあとに他の人が更新しています。このまま保存すると相手の変更が上書きされます。保存しますか？")) { setSave(false); return; }
+        }
+      }
+      const stamped = { ...form, 更新日時: new Date().toISOString() };
+      // 最新の資料庫を読み直し、この1件だけを差し替える（他の茶葉は触らない）
+      const next = await updateLibrary(arr => arr.some(t => t.id === stamped.id) ? arr.map(t => t.id === stamped.id ? stamped : t) : [...arr, stamped]);
+      setTeas(sortByNo(next.map(normalizeTea)));
+      closeMod();
+      notify(modal==="add"?"資料庫に追加しました ✓":"保存しました ✓");
+    } catch (e) { notify("❌ 保存に失敗しました：" + e.message); }
+    setSave(false);
   };
   const handleDelete = async () => {
-    await persist(teas.filter(t=>t.id!==form.id)); closeMod(); notify("削除しました");
+    try {
+      const next = await updateLibrary(arr => arr.filter(t => t.id !== form.id));
+      setTeas(sortByNo(next.map(normalizeTea)));
+      closeMod(); notify("削除しました");
+    } catch (e) { notify("❌ 削除に失敗しました：" + e.message); }
   };
   const done = t => [!!t.名前,!!(t.丁寧編?.茶器||t.丁寧編?.手順),!!(t.クイック編?.HOT||t.クイック編?.COLD),!!(t.試飲記録?.length),!!(t.ストーリー?.内容||t.ストーリー?.画像?.length),!!(t.基本画像?.length)];
 
@@ -1016,6 +1088,7 @@ function TeaLibrarySection({ notify, isMobile, onModalChange }) {
                                 {TEA_TABS.map((_,di)=><div key={di} style={{width:5,height:5,borderRadius:"50%",background:d[di]?type.color:"#e0d8cc",opacity:d[di]?.85:.35}}/>)}
                               </div>
                             </div>
+                            {tea.更新日時&&<div style={{fontSize:9,color:"#a89888",marginTop:2,letterSpacing:0.5}}>更新 {fmtTime(tea.更新日時)}</div>}
                           </div>
                         </div>
                         <button onClick={e=>{e.stopPropagation();openCopy(tea);}}
@@ -1058,7 +1131,7 @@ function TeaLibrarySection({ notify, isMobile, onModalChange }) {
             <div style={{background:"#1c1510",padding:"18px 24px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
               <div>
                 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:"#f5f0e8",fontStyle:"italic",fontWeight:300}}>{modal==="add"?"新しいお茶を追加":form.名前||"お茶を編集"}</div>
-                <div style={{fontSize:11,color:"#c9b070",letterSpacing:2,marginTop:2}}>茶葉資料庫</div>
+                <div style={{fontSize:11,color:"#c9b070",letterSpacing:2,marginTop:2}}>茶葉資料庫{modal==="edit"&&` ・ 最終更新 ${form.更新日時 ? fmtTime(form.更新日時, true) : "未記録"}`}</div>
               </div>
               <button onClick={closeMod} style={{color:"#7a6a5a",fontSize:22,border:"none",background:"none",cursor:"pointer"}}>×</button>
             </div>
@@ -1243,6 +1316,7 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
   const [refs, setRefs] = useState([]); // [{teaId, note}]
   const [refMode, setRefMode] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
+  const [baseStamp, setBaseStamp] = useState("");
 
   const loadTeas = useCallback(async () => {
     setLoad(true);
@@ -1257,6 +1331,11 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
       const r = rawData.refs || [];
       setRefs(r);
       setTeas(r.map(ref => lib.find(t => t.id === ref.teaId)).filter(Boolean).map(normalizeTea));
+      // 裏で最新の資料庫を取り直して反映（他の人の更新が見える）
+      loadLibrary(true).then(fresh => {
+        setLibrary(fresh);
+        setTeas(r.map(ref => fresh.find(t => t.id === ref.teaId)).filter(Boolean).map(normalizeTea));
+      });
     } else {
       setRefMode(false);
       setTeas((rawData || []).map(normalizeTea));
@@ -1267,13 +1346,13 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
   useEffect(() => { loadTeas(); }, [loadTeas]);
   const persist = async (u) => { await saveS("teas",year,month,u); setTeas(u); };
 
-  const openAdd  = () => { setForm(mkTea()); setTab(0); setModal("add"); onModalChange?.(true); };
+  const openAdd  = () => { setForm(mkTea()); setBaseStamp(""); setTab(0); setModal("add"); onModalChange?.(true); };
   const openCopy = (src) => {
     const copied = { ...normalizeTea(JSON.parse(JSON.stringify(src))),
       id: Date.now().toString(), No: "", 名前: `${src.名前}（コピー）`, 公開: false };
-    setForm(copied); setTab(0); setModal("add"); onModalChange?.(true);
+    setForm(copied); setBaseStamp(""); setTab(0); setModal("add"); onModalChange?.(true);
   };
-  const openEdit = t  => { setForm(normalizeTea(JSON.parse(JSON.stringify(t)))); setTab(0); setModal("edit"); onModalChange?.(true); };
+  const openEdit = t  => { setForm(normalizeTea(JSON.parse(JSON.stringify(t)))); setBaseStamp(t.更新日時 || ""); setTab(0); setModal("edit"); onModalChange?.(true); };
   const closeMod = () => { setModal(null); setForm(null); onModalChange?.(false); };
 
   const setF = (path, val) => setForm(prev => {
@@ -1296,19 +1375,30 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
     if (!form?.名前?.trim()) return;
     setSave(true);
     if (refMode) {
-      const newLib = modal==="add" ? [...library, form] : library.map(t => t.id===form.id ? form : t);
-      await saveLibrary(newLib);
-      setLibrary(newLib);
-      let newRefs = refs;
-      if (modal==="add") {
-        // 新茶は資料庫に保存して、この月にも自動追加
-        newRefs = [...refs, { teaId: form.id, note: "" }];
+      try {
+        if (modal === "edit") {
+          const latest = await loadLibrary(true);
+          const cur = latest.find(t => t.id === form.id);
+          if (cur && (cur.更新日時 || "") !== (baseStamp || "")) {
+            if (!window.confirm("この茶葉は、あなたが開いたあとに他の人が更新しています。このまま保存すると相手の変更が上書きされます。保存しますか？")) { setSave(false); return; }
+          }
+        }
+        const stamped = { ...form, 更新日時: new Date().toISOString() };
+        // 最新の資料庫を読み直し、この1件だけを差し替える（他の茶葉は触らない）
+        const newLib = await updateLibrary(arr => arr.some(t => t.id === stamped.id) ? arr.map(t => t.id === stamped.id ? stamped : t) : [...arr, stamped]);
+        setLibrary(newLib);
+        let newRefs = refs;
+        if (modal==="add") {
+          // 新茶は資料庫に保存して、この月にも自動追加（最新の月号リストに足す）
+          const r = await updateMonthRefs(year, month, cur => cur.some(x => x.teaId === stamped.id) ? cur : [...cur, { teaId: stamped.id, note: "" }]);
+          newRefs = r.refs;
+        }
         setRefs(newRefs);
-        await saveS("teas", year, month, { mode:"refs", refs:newRefs });
-      }
-      setTeas(newRefs.map(r => newLib.find(t => t.id === r.teaId)).filter(Boolean).map(normalizeTea));
-      setSave(false); closeMod();
-      notify(modal==="add" ? "資料庫に登録し、この月に追加しました ✓" : "資料庫に保存しました ✓");
+        setTeas(newRefs.map(r => newLib.find(t => t.id === r.teaId)).filter(Boolean).map(normalizeTea));
+        closeMod();
+        notify(modal==="add" ? "資料庫に登録し、この月に追加しました ✓" : "資料庫に保存しました ✓");
+      } catch (e) { notify("❌ 保存に失敗しました：" + e.message); }
+      setSave(false);
     } else {
       const u = modal==="add" ? [...teas,form] : teas.map(t=>t.id===form.id?form:t);
       await persist(u); setSave(false); closeMod();
@@ -1329,29 +1419,38 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
     await saveS("teas", year, month, { mode:"refs", refs: newRefs });
     notify("保存しました ✓");
   };
-  const removeRef = async (teaId) => {
-    const newRefs = refs.filter(r => r.teaId !== teaId);
+  const applyRefs = (newRefs) => {
     setRefs(newRefs);
     setTeas(newRefs.map(r => library.find(t => t.id === r.teaId)).filter(Boolean).map(normalizeTea));
-    await saveRefMode(newRefs);
+  };
+  // 月号リストの変更も「最新を読み直して、自分の操作だけ反映」する
+  const removeRef = async (teaId) => {
+    try {
+      const r = await updateMonthRefs(year, month, cur => cur.filter(x => x.teaId !== teaId));
+      applyRefs(r.refs); notify("保存しました ✓");
+    } catch (e) { notify("❌ 保存に失敗しました：" + e.message); }
   };
   const addFromPicker = async (ids) => {
-    const newEntries = ids.map(id => ({ teaId: id, note: "" }));
-    const newRefs = [...refs, ...newEntries];
-    setRefs(newRefs);
-    setTeas(newRefs.map(r => library.find(t => t.id === r.teaId)).filter(Boolean).map(normalizeTea));
     setShowPicker(false);
-    await saveRefMode(newRefs);
-    notify("追加しました ✓");
+    try {
+      const r = await updateMonthRefs(year, month, cur => [...cur, ...ids.filter(id => !cur.some(x => x.teaId === id)).map(id => ({ teaId: id, note: "" }))]);
+      applyRefs(r.refs); notify("追加しました ✓");
+    } catch (e) { notify("❌ 保存に失敗しました：" + e.message); }
   };
   const moveRef = async (idx, dir) => {
-    const newRefs = [...refs];
-    const swap = idx + dir;
-    if (swap < 0 || swap >= newRefs.length) return;
-    [newRefs[idx], newRefs[swap]] = [newRefs[swap], newRefs[idx]];
-    setRefs(newRefs);
-    setTeas(newRefs.map(r => library.find(t => t.id === r.teaId)).filter(Boolean).map(normalizeTea));
-    await saveRefMode(newRefs);
+    const teaId = refs[idx]?.teaId;
+    if (!teaId) return;
+    try {
+      const r = await updateMonthRefs(year, month, cur => {
+        const next = [...cur];
+        const i = next.findIndex(x => x.teaId === teaId);
+        const j = i + dir;
+        if (i < 0 || j < 0 || j >= next.length) return cur;
+        [next[i], next[j]] = [next[j], next[i]];
+        return next;
+      });
+      applyRefs(r.refs); notify("保存しました ✓");
+    } catch (e) { notify("❌ 保存に失敗しました：" + e.message); }
   };
   const updateNote = async (teaId, note) => {
     const newRefs = refs.map(r => r.teaId === teaId ? {...r, note} : r);
@@ -1424,7 +1523,7 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
                   {tea.説明&&<div style={{fontSize:13,color:"#4a3a2a",lineHeight:1.8,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",marginBottom:8}}>{tea.説明}</div>}
                   {tea.基本画像?.[0]?.src&&<div style={{marginBottom:8,borderRadius:6,overflow:"hidden",height:80}}><img src={tea.基本画像[0].src} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>}
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end",marginTop:8}}>
-                    {tea.収穫日&&<div style={{fontSize:11,color:"#7a6a5a"}}>{tea.収穫日}</div>}
+                    <div>{tea.収穫日&&<div style={{fontSize:11,color:"#7a6a5a"}}>{tea.収穫日}</div>}{tea.更新日時&&<div style={{fontSize:10,color:"#a89888",marginTop:2}}>更新 {fmtTime(tea.更新日時)}</div>}</div>
                     <div style={{display:"flex",gap:4,marginLeft:"auto"}}>
                       {TEA_TABS.map((_,di)=><div key={di} style={{width:7,height:7,borderRadius:"50%",background:d[di]?inf.color:"#e0d8cc",opacity:d[di]?.85:.35}}/>)}
                     </div>
@@ -1472,7 +1571,7 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
                   {tea.説明&&<div style={{fontSize:13,color:"#4a3a2a",lineHeight:1.8,overflow:"hidden",display:"-webkit-box",WebkitLineClamp:2,WebkitBoxOrient:"vertical",marginBottom:8}}>{tea.説明}</div>}
                   {tea.ストーリー?.画像?.[0]?.src&&<div style={{marginBottom:8,borderRadius:6,overflow:"hidden",height:70}}><img src={tea.ストーリー.画像[0].src} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/></div>}
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-end"}}>
-                    {tea.収穫日&&<div style={{fontSize:11,color:"#7a6a5a"}}>{tea.収穫日}</div>}
+                    <div>{tea.収穫日&&<div style={{fontSize:11,color:"#7a6a5a"}}>{tea.収穫日}</div>}{tea.更新日時&&<div style={{fontSize:10,color:"#a89888",marginTop:2}}>更新 {fmtTime(tea.更新日時)}</div>}</div>
                     <div style={{display:"flex",gap:4,marginLeft:"auto"}}>
                       {TEA_TABS.map((_,di)=><div key={di} style={{width:7,height:7,borderRadius:"50%",background:d[di]?inf.color:"#e0d8cc",opacity:d[di]?.85:.35}}/>)}
                     </div>
@@ -1510,7 +1609,7 @@ function TeaSection({ year, month, notify, isMobile, onModalChange }) {
                 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:22,color:"#f5f0e8",fontStyle:"italic",fontWeight:300}}>
                   {modal==="add"?"新しいお茶を追加":form.名前||"お茶を編集"}
                 </div>
-                <div style={{fontSize:11,color:"#c9b070",letterSpacing:2,marginTop:2}}>{year}年 {MONTH_JA[month-1]}</div>
+                <div style={{fontSize:11,color:"#c9b070",letterSpacing:2,marginTop:2}}>{year}年 {MONTH_JA[month-1]}{modal==="edit"&&` ・ 最終更新 ${form.更新日時 ? fmtTime(form.更新日時, true) : "未記録"}`}</div>
               </div>
               <button onClick={closeMod} style={{color:"#7a6a5a",fontSize:22,border:"none",background:"none",cursor:"pointer",padding:"4px 8px"}}>×</button>
             </div>
