@@ -1282,11 +1282,8 @@ function LibraryTeaTabBody({ tab, form, setF, isMobile, addRec, setRec, delRec }
           </div>
           <div>
             <label style={LBL}>朔ノ函の内容量 <span style={{color:"#b89a5c",fontWeight:400,letterSpacing:0,textTransform:"none",fontSize:10}}>（内部用）</span></label>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <input type="number" inputMode="decimal" min="0" step="0.1" style={FI} placeholder="例：15"
-                value={form?.朔ノ函内容量||""} onChange={e=>setF("朔ノ函内容量",e.target.value)}/>
-              <span style={{fontSize:14,color:"#5a4a3a",fontWeight:600}}>g</span>
-            </div>
+            <input type="text" style={FI} placeholder="例：15g、約20g、ティーバッグ3個"
+              value={form?.朔ノ函内容量||""} onChange={e=>setF("朔ノ函内容量",e.target.value)}/>
             <div style={{marginTop:6,fontSize:11,color:"#8a7060"}}>🔒 社内参考用・お客様には表示しません</div>
           </div>
         </div>
