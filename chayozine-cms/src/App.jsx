@@ -190,7 +190,7 @@ const processImage = async (file, maxW=1400) => {
 };
 
 // ─── Tea helpers ──────────────────────────────────────────────────────────────
-const mkTea = () => ({ id: Date.now().toString(), No:"", 公開:false, 購入URL:"", 朔ノ函収録月:"", 分類:"緑茶", 場所:"", 名前:"", ひながら:"", 収穫日:"", 説明:"", おやつ:"",
+const mkTea = () => ({ id: Date.now().toString(), No:"", 公開:false, 購入URL:"", 朔ノ函収録月:"", 朔ノ函内容量:"", 分類:"緑茶", 場所:"", 名前:"", ひながら:"", 収穫日:"", 説明:"", おやつ:"",
   基本画像:[], 丁寧編:{茶器:"",投茶量:"",水温:"",手順:""}, クイック編:{HOT:"",COLD:""}, 試飲記録:[], ストーリー:{内容:"",画像:[]} });
 const tInfo = label => TEA_TYPES.find(t => t.label === label) || TEA_TYPES[0];
 const fmtTime = (iso, full = false) => {
@@ -213,6 +213,7 @@ const normalizeTea = (t) => ({
   公開: t.公開 === true,
   購入URL: t.購入URL || "",
   朔ノ函収録月: t.朔ノ函収録月 || "",
+  朔ノ函内容量: t.朔ノ函内容量 || "",
   基本画像: Array.isArray(t.基本画像) ? t.基本画像 : [],
   試飲記録: Array.isArray(t.試飲記録) ? t.試飲記録 : [],
   丁寧編: t.丁寧編 || {茶器:"",投茶量:"",水温:"",手順:""},
@@ -1267,16 +1268,27 @@ function LibraryTeaTabBody({ tab, form, setF, isMobile, addRec, setRec, delRec }
             </a>
           </div>}
         </div>
-        <div>
-          <label style={LBL}>朔ノ函 収録月 <span style={{color:"#b89a5c",fontWeight:400,letterSpacing:0,textTransform:"none",fontSize:10}}>（任意・単品茶は空欄）</span></label>
-          <input type="month" style={{...FI,maxWidth:200}}
-            value={form?.朔ノ函収録月||""} onChange={e=>setF("朔ノ函収録月",e.target.value)}/>
-          {form?.朔ノ函収録月&&(() => {
-            const [y,m] = form.朔ノ函収録月.split("-");
-            return <div style={{marginTop:6,fontSize:11,color:"#8a7060"}}>
-              表示例：朔ノ函 {y} {parseInt(m)}月号
-            </div>;
-          })()}
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(190px,1fr))",gap:14}}>
+          <div>
+            <label style={LBL}>朔ノ函 収録月 <span style={{color:"#b89a5c",fontWeight:400,letterSpacing:0,textTransform:"none",fontSize:10}}>（任意・単品茶は空欄）</span></label>
+            <input type="month" style={FI}
+              value={form?.朔ノ函収録月||""} onChange={e=>setF("朔ノ函収録月",e.target.value)}/>
+            {form?.朔ノ函収録月&&(() => {
+              const [y,m] = form.朔ノ函収録月.split("-");
+              return <div style={{marginTop:6,fontSize:11,color:"#8a7060"}}>
+                表示例：朔ノ函 {y} {parseInt(m)}月号
+              </div>;
+            })()}
+          </div>
+          <div>
+            <label style={LBL}>朔ノ函の内容量 <span style={{color:"#b89a5c",fontWeight:400,letterSpacing:0,textTransform:"none",fontSize:10}}>（内部用）</span></label>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <input type="number" inputMode="decimal" min="0" step="0.1" style={FI} placeholder="例：15"
+                value={form?.朔ノ函内容量||""} onChange={e=>setF("朔ノ函内容量",e.target.value)}/>
+              <span style={{fontSize:14,color:"#5a4a3a",fontWeight:600}}>g</span>
+            </div>
+            <div style={{marginTop:6,fontSize:11,color:"#8a7060"}}>🔒 社内参考用・お客様には表示しません</div>
+          </div>
         </div>
       </>}
       {tab===1&&<>
